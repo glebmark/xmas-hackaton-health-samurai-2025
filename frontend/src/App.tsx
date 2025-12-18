@@ -52,10 +52,25 @@ function App(): React.ReactElement {
     setError(null);
     
     try {
-      const userAuth = `Basic ${btoa(`${selectedUser.id}:${selectedUser.password || selectedUser.secret || ''}`)}`;
+      // Build UserAuthInfo object for backend
+      const userAuth = {
+        type: selectedUser.type,
+        id: selectedUser.id,
+        ...(selectedUser.type === 'client' 
+          ? { secret: selectedUser.secret } 
+          : { password: selectedUser.password }
+        ),
+      };
       
       if (isCompareMode && compareUser) {
-        const compareAuth = `Basic ${btoa(`${compareUser.id}:${compareUser.password || compareUser.secret || ''}`)}`;
+        const compareAuth = {
+          type: compareUser.type,
+          id: compareUser.id,
+          ...(compareUser.type === 'client' 
+            ? { secret: compareUser.secret } 
+            : { password: compareUser.password }
+          ),
+        };
         
         const response = await fetch('/api/access/compare', {
           method: 'POST',

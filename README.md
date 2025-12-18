@@ -88,9 +88,18 @@ AIDBOX_URL=https://your-aidbox-instance.aidbox.app
 AIDBOX_CLIENT_ID=your-admin-client-id
 AIDBOX_CLIENT_SECRET=your-admin-client-secret
 
+# Optional: Client for user authentication (password grant)
+# If your main client doesn't support password grant, specify a different client here
+# AIDBOX_USER_AUTH_CLIENT_ID=your-user-auth-client-id
+# AIDBOX_USER_AUTH_CLIENT_SECRET=your-user-auth-client-secret
+
 # Server Configuration
 PORT=3001
 ```
+
+> **Note**: To test access as Users (not just Clients), you need a client that supports the `password` grant type. Either:
+> - Enable `password` grant on your main client in Aidbox
+> - Or set `AIDBOX_USER_AUTH_CLIENT_ID`/`AIDBOX_USER_AUTH_CLIENT_SECRET` to a client that has it enabled
 
 3. **Install dependencies**
 ```bash
@@ -125,15 +134,19 @@ Navigate to `http://localhost:5173`
 
 The visualizer supports two authentication methods:
 
-### For System Operations (User/Client Search)
+### For System Operations (User/Client Search, Sample Resources)
 Uses admin credentials configured in `.env`:
-- Basic Auth with `AIDBOX_CLIENT_ID` and `AIDBOX_CLIENT_SECRET`
+- OAuth2 `client_credentials` grant with `AIDBOX_CLIENT_ID` and `AIDBOX_CLIENT_SECRET`
 - This client should have an `allow` access policy (engine: allow)
 
 ### For Access Testing
-Tests are performed using the selected user's credentials:
-- **Users**: Basic Auth with user ID and password
-- **Clients**: Basic Auth with client ID and secret
+Tests are performed using the selected user/client credentials:
+- **Clients**: Basic Auth with client ID and secret (works directly)
+- **Users**: OAuth2 `password` grant to obtain a Bearer token, then uses that token for FHIR requests
+
+> **Important**: For testing Users, you need a client that supports the `password` grant type.
+> Configure it via `AIDBOX_USER_AUTH_CLIENT_ID`/`AIDBOX_USER_AUTH_CLIENT_SECRET`, or enable
+> `password` grant on your main client.
 
 ## 📊 Understanding Results
 

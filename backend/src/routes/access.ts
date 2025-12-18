@@ -1,24 +1,24 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { aidboxService } from '../services/aidbox.js';
+import { aidboxService, type UserAuthInfo } from '../services/aidbox.js';
 import type { CompareResults } from '../types.js';
 
 const router = Router();
 
 interface TestRequestBody {
   resourceType: string;
-  userAuth: string;
+  userAuth: UserAuthInfo;
   existingResourceId?: string;
 }
 
 interface TestBatchRequestBody {
   resourceTypes: string[];
-  userAuth: string;
+  userAuth: UserAuthInfo;
 }
 
 interface CompareRequestBody {
   resourceTypes: string[];
-  userAuth1: string;
-  userAuth2: string;
+  userAuth1: UserAuthInfo;
+  userAuth2: UserAuthInfo;
 }
 
 // Test access for a specific resource type and user
@@ -31,8 +31,31 @@ router.post('/test', async (req: Request<object, unknown, TestRequestBody>, res:
       return;
     }
 
-    const results = await aidboxService.testAllOperations(resourceType, userAuth, existingResourceId || null);
+    // Resolve auth info to authorization header
+    const authHeader = await aidboxService.resolveAuthHeader(userAuth);
+
+    const results = await aidboxService.testAllOperations(resourceType, authHeader, existingResourceId || null);
     res.json(results);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Debug endpoint: test a single direct request (not batch) to help diagnose issues
+router.post('/test-single', async (req: Request<object, unknown, { userAuth: UserAuthInfo; resourceType: string }>, res: Response, next: NextFunction) => {
+  try {
+    const { userAuth, resourceType } = req.body;
+
+    if (!userAuth || !resourceType) {
+      res.status(400).json({ error: 'userAuth and resourceType are required' });
+      return;
+    }
+
+    const authHeader = await aidboxService.resolveAuthHeader(userAuth);
+    
+    // Make a single direct GET request (not batch)
+    const result = await aidboxService.testSingleRequest(resourceType, authHeader);
+    res.json(result);
   } catch (error) {
     next(error);
   }
@@ -48,11 +71,16 @@ router.post('/test-batch', async (req: Request<object, unknown, TestBatchRequest
       return;
     }
 
+    console.log(`📋 Testing access for ${userAuth.type} "${userAuth.id}" on ${resourceTypes.length} resources`);
+
+    // Resolve auth info to authorization header
+    const authHeader = await aidboxService.resolveAuthHeader(userAuth);
+
     // Get sample IDs for all resources in a single batch request
     const sampleIds = await aidboxService.getResourceSamples(resourceTypes);
 
     // Test all access in a single batch request
-    const results = await aidboxService.testAccessBatch(resourceTypes, userAuth, sampleIds);
+    const results = await aidboxService.testAccessBatch(resourceTypes, authHeader, sampleIds);
 
     res.json(results);
   } catch (error) {
@@ -70,13 +98,19 @@ router.post('/compare', async (req: Request<object, unknown, CompareRequestBody>
       return;
     }
 
+    // Resolve both auth infos to authorization headers
+    const [authHeader1, authHeader2] = await Promise.all([
+      aidboxService.resolveAuthHeader(userAuth1),
+      aidboxService.resolveAuthHeader(userAuth2),
+    ]);
+
     // Get sample IDs once (shared between both users)
     const sampleIds = await aidboxService.getResourceSamples(resourceTypes);
 
     // Test both users in parallel, each using a single batch request
     const [user1Results, user2Results] = await Promise.all([
-      aidboxService.testAccessBatch(resourceTypes, userAuth1, sampleIds),
-      aidboxService.testAccessBatch(resourceTypes, userAuth2, sampleIds),
+      aidboxService.testAccessBatch(resourceTypes, authHeader1, sampleIds),
+      aidboxService.testAccessBatch(resourceTypes, authHeader2, sampleIds),
     ]);
 
     const results: CompareResults = {
