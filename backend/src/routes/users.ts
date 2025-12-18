@@ -8,6 +8,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const q = req.query.q as string | undefined;
     const users = await aidboxService.searchUsers(q);
+    console.log(`🔍 Found ${users.length} users`);
     res.json(users);
   } catch (error) {
     next(error);

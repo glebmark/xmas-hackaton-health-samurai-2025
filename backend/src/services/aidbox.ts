@@ -132,6 +132,10 @@ class AidboxService {
       return this._cachedToken.accessToken;
     }
 
+    // Debug: Log what credentials we're using
+    console.log(`🔐 Attempting token request with client_id: ${this.clientId}`);
+    console.log(`🔐 Client secret length: ${this.clientSecret.length}, first 5 chars: ${this.clientSecret.substring(0, 5)}...`);
+
     // Request new token using client_credentials
     const tokenUrl = `${this.baseUrl}/auth/token`;
     
@@ -213,7 +217,9 @@ class AidboxService {
   async getUserToken(userId: string, password: string): Promise<string> {
     const tokenUrl = `${this.baseUrl}/auth/token`;
     
-    console.log(`🔐 Getting user token via client: ${this.userAuthClientId}`);
+    console.log(`🔐 Getting user token for user: ${userId}`);
+    console.log(`🔐 Using password grant client: ${this.userAuthClientId}`);
+    console.log(`🔐 Client secret length: ${this.userAuthClientSecret.length}`);
     
     const response = await fetch(tokenUrl, {
       method: 'POST',
@@ -253,7 +259,7 @@ class AidboxService {
   /**
    * Resolve UserAuthInfo to an Authorization header.
    * - For clients: Basic auth with id:secret
-   * - For users: Bearer token obtained via password grant
+   * - For users: OAuth password grant to get Bearer token
    */
   async resolveAuthHeader(authInfo: UserAuthInfo): Promise<string> {
     if (authInfo.type === 'client') {
@@ -261,30 +267,36 @@ class AidboxService {
       const credentials = Buffer.from(`${authInfo.id}:${authInfo.secret || ''}`).toString('base64');
       return `Basic ${credentials}`;
     } else {
-      // Users need to get a token via password grant
-      const token = await this.getUserToken(authInfo.id, authInfo.password || '');
+      // Users MUST use OAuth password grant - Basic auth only works for Clients
+      if (!authInfo.password) {
+        throw new Error('Password is required for user authentication. Please enter the user\'s password.');
+      }
+      const token = await this.getUserToken(authInfo.id, authInfo.password);
       return `Bearer ${token}`;
     }
   }
 
   async searchUsers(query: string = ''): Promise<AidboxUser[]> {
-    // Search by id using Aidbox _ilike parameter
-    const searchParam = query ? `&_ilike=${encodeURIComponent(query)}` : '';
-    const url = `/User?_count=50${searchParam}`;
-    console.log(`🔍 Searching users: ${url}`);
-    const response = await this.request(url);
+    // Use FHIR API for better compatibility with access policies
+    const searchParam = query ? `&name:contains=${encodeURIComponent(query)}` : '';
+    console.log(`🔍 Searching users with query: ${query}`);
+    const response = await this.request(`/fhir/User?_count=50${searchParam}`);
     const data = await response.json() as Bundle<AidboxUser>;
-    const users = data.entry?.map(e => e.resource) || [];
-    console.log(`✅ Found ${users.length} users`);
-    return users;
+    
+    // Debug: log raw response
+    console.log(`📦 User search response status: ${response.status}`);
+    console.log(`📦 User search total: ${(data as { total?: number }).total ?? 'N/A'}, entries: ${data.entry?.length ?? 0}`);
+    if (!data.entry?.length) {
+      console.log(`📦 Raw response:`, JSON.stringify(data, null, 2).slice(0, 500));
+    }
+    
+    return data.entry?.map(e => e.resource) || [];
   }
 
   async getClients(query: string = ''): Promise<AidboxClient[]> {
-    // Search by id using Aidbox _ilike parameter
-    const searchParam = query ? `&_ilike=${encodeURIComponent(query)}` : '';
-    const url = `/Client?_count=50${searchParam}`;
-    console.log(`🔍 Searching clients: ${url}`);
-    const response = await this.request(url);
+    // Use FHIR API for better compatibility with access policies
+    const searchParam = query ? `&_id:contains=${encodeURIComponent(query)}` : '';
+    const response = await this.request(`/fhir/Client?_count=50${searchParam}`);
     const data = await response.json() as Bundle<AidboxClient>;
     const clients = data.entry?.map(e => e.resource) || [];
     console.log(`✅ Found ${clients.length} clients`);
