@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, X, AlertTriangle, ChevronLeft, ChevronRight, FileQuestion, ShieldX, Ban } from 'lucide-react';
+import { Check, AlertTriangle, ChevronLeft, ChevronRight, FileQuestion, ShieldX, Ban } from 'lucide-react';
 import StatusCell from './StatusCell';
 import type { ResourceInfo, Pagination, ResourceAccessResults, OperationInfo } from '../types';
 
@@ -33,7 +33,7 @@ function AccessMatrix({ results, resources, isLoading, pagination, onPageChange 
         </div>
         
         {/* Legend */}
-        <div className="flex items-center gap-4 text-xs">
+        <div className="flex items-center gap-4 text-xs flex-wrap">
           <div className="flex items-center gap-1.5">
             <div className="w-4 h-4 rounded status-allowed flex items-center justify-center">
               <Check className="w-3 h-3" />
@@ -63,6 +63,10 @@ function AccessMatrix({ results, resources, isLoading, pagination, onPageChange 
               <AlertTriangle className="w-3 h-3" />
             </div>
             <span className="text-gray-400">Error</span>
+          </div>
+          <div className="flex items-center gap-1.5 border-l border-white/10 pl-4">
+            <div className="w-3 h-3 bg-aurora-purple rounded-full" />
+            <span className="text-gray-400">Has Policy</span>
           </div>
         </div>
       </div>
@@ -108,13 +112,14 @@ function AccessMatrix({ results, resources, isLoading, pagination, onPageChange 
                     </div>
                   </div>
                 </td>
-                {OPERATIONS.map((op) => (
+                {OPERATIONS.map((op, opIndex) => (
                   <td key={op.key} className="px-3 py-4">
                     <StatusCell
                       result={results?.[resource.name]?.[op.key]}
                       isLoading={isLoading}
                       operation={op}
                       resourceType={resource.name}
+                      isRightmost={opIndex === OPERATIONS.length - 1}
                     />
                   </td>
                 ))}

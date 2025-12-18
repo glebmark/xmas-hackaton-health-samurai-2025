@@ -213,6 +213,8 @@ class AidboxService {
   async getUserToken(userId: string, password: string): Promise<string> {
     const tokenUrl = `${this.baseUrl}/auth/token`;
     
+    console.log(`🔐 Getting user token via client: ${this.userAuthClientId}`);
+    
     const response = await fetch(tokenUrl, {
       method: 'POST',
       headers: {
@@ -385,6 +387,7 @@ class AidboxService {
       404: 'Not Found',
       405: 'Method Not Allowed',
       409: 'Conflict',
+      410: 'Gone',
       422: 'Unprocessable Entity',
       500: 'Internal Server Error',
     };
@@ -400,7 +403,8 @@ class AidboxService {
     userAuth: string,
     sampleId: string | null
   ): Promise<AccessTestResult> {
-    const url = `/fhir/${op.getUrl(resourceType, sampleId || undefined)}`;
+    const baseUrl = op.getUrl(resourceType, sampleId || undefined);
+    const url = `/fhir/${baseUrl}`;
     
     let body: string | undefined = undefined;
     const headers: Record<string, string> = {
@@ -431,8 +435,24 @@ class AidboxService {
       }, userAuth);
 
       const status = response.status;
-      const responseBody = await response.json().catch(() => null);
-      const accessPolicy = response.headers.get('x-access-policy');
+      const responseBody = await response.json().catch(() => null) as Record<string, unknown> | null;
+      
+      // Log first response
+      if (op.key === 'search' && resourceType === 'Patient') {
+        console.log(`🔍 Response for ${resourceType}/${op.key}: status=${status}`);
+      }
+      
+      // Try to get access policy from response headers
+      const accessPolicy = response.headers.get('x-access-policy') 
+        || response.headers.get('x-aidbox-access-policy')
+        || null;
+
+      // Determine if access was allowed (vs denied by policy)
+      // 404/410/422 mean access was granted but operation failed for other reasons
+      const accessAllowed = status >= 200 && status < 300 
+        || status === 404  // Not found - access allowed, resource doesn't exist
+        || status === 410  // Gone/Deleted - access allowed, resource was deleted  
+        || status === 422; // Validation error - access allowed, invalid data
 
       return {
         operation: op.key,
@@ -442,10 +462,10 @@ class AidboxService {
         status,
         statusText: this.getStatusText(status),
         accessPolicy,
-        allowed: status >= 200 && status < 300,
+        allowed: accessAllowed,
         unauthorized: status === 401,
         denied: status === 403,
-        notFound: status === 404,
+        notFound: status === 404 || status === 410,
         error: status >= 400 ? responseBody : undefined,
         body: responseBody,
       };
@@ -548,72 +568,19 @@ class AidboxService {
     return results;
   }
 
-  /**
-   * Get sample resource IDs for testing read/update/delete operations
-   * Uses a batch request to fetch samples for all resource types at once
-   */
-  async getResourceSamples(resourceTypes: string[]): Promise<Record<string, string | null>> {
-    const samples: Record<string, string | null> = {};
-    
-    // Build batch request to get one sample of each resource type
-    const entries: BatchRequestEntry[] = resourceTypes.map(resourceType => ({
-      fullUrl: `urn:uuid:sample-${resourceType}`,
-      request: {
-        method: 'GET',
-        url: `${resourceType}?_count=1`,
-      },
-    }));
+  // Sample ID fetching removed - we use __nonexistent__ placeholder IDs instead.
+  // For access policy testing, a 404 response means "access allowed but resource not found"
+  // which is sufficient to determine the policy grants access.
 
-    const batchRequest: BatchRequest = {
-      resourceType: 'Bundle',
-      type: 'batch',
-      entry: entries,
-    };
-
-    try {
-      const response = await this.request('/fhir', {
-        method: 'POST',
-        body: JSON.stringify(batchRequest),
-        headers: {
-          'Content-Type': 'application/fhir+json',
-          'Accept': 'application/fhir+json',
-        },
-      });
-
-      const batchResponse = await response.json() as BatchResponse;
-
-      // Extract sample IDs from response
-      for (let i = 0; i < resourceTypes.length; i++) {
-        const entry = batchResponse.entry[i];
-        const resource = entry?.resource as { entry?: Array<{ resource: { id: string } }> } | undefined;
-        samples[resourceTypes[i]] = resource?.entry?.[0]?.resource?.id || null;
-      }
-    } catch (error) {
-      console.error('Failed to get resource samples:', error);
-      // Return null for all on error
-      for (const rt of resourceTypes) {
-        samples[rt] = null;
-      }
-    }
-
-    return samples;
-  }
-
-  // Legacy method for backward compatibility - now uses batch internally
+  // Legacy method for backward compatibility - now uses parallel requests internally
   async testAllOperations(
     resourceType: string, 
     userAuth: string, 
     existingResourceId: string | null = null
   ): Promise<AccessTestResults> {
-    const sampleIds = { [resourceType]: existingResourceId };
+    const sampleIds = existingResourceId ? { [resourceType]: existingResourceId } : {};
     const results = await this.testAccessBatch([resourceType], userAuth, sampleIds);
     return results[resourceType] || {};
-  }
-
-  // Legacy method
-  async getResourceSample(resourceType: string): Promise<string | null> {
-    const samples = await this.getResourceSamples([resourceType]);
-    return samples[resourceType] || null;
   }
 
   /**

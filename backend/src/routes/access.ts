@@ -61,7 +61,7 @@ router.post('/test-single', async (req: Request<object, unknown, { userAuth: Use
   }
 });
 
-// Test access for multiple resource types using efficient FHIR Batch
+// Test access for multiple resource types using parallel individual requests
 router.post('/test-batch', async (req: Request<object, unknown, TestBatchRequestBody>, res: Response, next: NextFunction) => {
   try {
     const { resourceTypes, userAuth } = req.body;
@@ -76,11 +76,9 @@ router.post('/test-batch', async (req: Request<object, unknown, TestBatchRequest
     // Resolve auth info to authorization header
     const authHeader = await aidboxService.resolveAuthHeader(userAuth);
 
-    // Get sample IDs for all resources in a single batch request
-    const sampleIds = await aidboxService.getResourceSamples(resourceTypes);
-
-    // Test all access in a single batch request
-    const results = await aidboxService.testAccessBatch(resourceTypes, authHeader, sampleIds);
+    // Test all access in parallel - uses __nonexistent__ placeholder IDs
+    // A 404 response means "access allowed but resource not found" which is fine for testing
+    const results = await aidboxService.testAccessBatch(resourceTypes, authHeader);
 
     res.json(results);
   } catch (error) {
@@ -88,7 +86,7 @@ router.post('/test-batch', async (req: Request<object, unknown, TestBatchRequest
   }
 });
 
-// Compare access between two users using efficient FHIR Batch
+// Compare access between two users
 router.post('/compare', async (req: Request<object, unknown, CompareRequestBody>, res: Response, next: NextFunction) => {
   try {
     const { resourceTypes, userAuth1, userAuth2 } = req.body;
@@ -104,13 +102,10 @@ router.post('/compare', async (req: Request<object, unknown, CompareRequestBody>
       aidboxService.resolveAuthHeader(userAuth2),
     ]);
 
-    // Get sample IDs once (shared between both users)
-    const sampleIds = await aidboxService.getResourceSamples(resourceTypes);
-
-    // Test both users in parallel, each using a single batch request
+    // Test both users in parallel
     const [user1Results, user2Results] = await Promise.all([
-      aidboxService.testAccessBatch(resourceTypes, authHeader1, sampleIds),
-      aidboxService.testAccessBatch(resourceTypes, authHeader2, sampleIds),
+      aidboxService.testAccessBatch(resourceTypes, authHeader1),
+      aidboxService.testAccessBatch(resourceTypes, authHeader2),
     ]);
 
     const results: CompareResults = {

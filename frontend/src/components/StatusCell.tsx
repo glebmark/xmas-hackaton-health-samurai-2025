@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Check, X, AlertTriangle, HelpCircle, FileQuestion, Loader2, LucideIcon, ShieldX, Ban } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Check, AlertTriangle, HelpCircle, FileQuestion, Loader2, LucideIcon, ShieldX, Ban } from 'lucide-react';
 import type { AccessTestResult, OperationInfo } from '../types';
 
 interface StatusCellProps {
@@ -7,6 +7,7 @@ interface StatusCellProps {
   isLoading: boolean;
   operation: OperationInfo;
   resourceType: string;
+  isRightmost?: boolean; // For positioning tooltip on right edge
 }
 
 interface StatusInfo {
@@ -16,8 +17,24 @@ interface StatusInfo {
   color: string;
 }
 
-function StatusCell({ result, isLoading, operation }: StatusCellProps): React.ReactElement {
+function StatusCell({ result, isLoading, operation, isRightmost = false }: StatusCellProps): React.ReactElement {
   const [showTooltip, setShowTooltip] = useState(false);
+  const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMouseEnter = () => {
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = null;
+    }
+    setShowTooltip(true);
+  };
+
+  const handleMouseLeave = () => {
+    // Delay hiding to allow moving to tooltip
+    hideTimeoutRef.current = setTimeout(() => {
+      setShowTooltip(false);
+    }, 150);
+  };
 
   if (isLoading) {
     return (
@@ -83,20 +100,38 @@ function StatusCell({ result, isLoading, operation }: StatusCellProps): React.Re
   const status = getStatusInfo();
   const Icon = status.icon;
 
+  // Position tooltip to the left for rightmost columns
+  const tooltipPositionClass = isRightmost 
+    ? 'right-0 translate-x-0' 
+    : 'left-1/2 -translate-x-1/2';
+  
+  const arrowPositionClass = isRightmost
+    ? 'right-4'
+    : 'left-1/2 -translate-x-1/2';
+
   return (
     <div className="relative flex justify-center">
       <button
-        className={`w-10 h-10 rounded-lg ${status.className} flex items-center justify-center transition-all hover:scale-110 cursor-pointer`}
-        onMouseEnter={() => setShowTooltip(true)}
-        onMouseLeave={() => setShowTooltip(false)}
+        className={`w-10 h-10 rounded-lg ${status.className} flex items-center justify-center transition-all hover:scale-110 cursor-pointer relative`}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
         <Icon className="w-4 h-4" />
+        {/* Access policy indicator */}
+        {result.accessPolicy && (
+          <div className="absolute -top-1 -right-1 w-3 h-3 bg-aurora-purple rounded-full border-2 border-midnight-800" 
+               title="Has access policy" />
+        )}
       </button>
 
-      {/* Tooltip */}
+      {/* Tooltip - stays open when you hover over it */}
       {showTooltip && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 animate-fade-in">
-          <div className="bg-midnight-800 border border-white/10 rounded-xl p-4 shadow-xl min-w-[280px]">
+        <div 
+          className={`absolute bottom-full ${tooltipPositionClass} mb-2 z-50 animate-fade-in`}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
+          <div className="bg-midnight-800 border border-white/10 rounded-xl p-4 shadow-xl min-w-[280px] max-w-[400px]">
             {/* Header */}
             <div className="flex items-center gap-2 mb-3 pb-3 border-b border-white/5">
               <div className={`w-6 h-6 rounded-lg ${status.className} flex items-center justify-center`}>
@@ -107,37 +142,41 @@ function StatusCell({ result, isLoading, operation }: StatusCellProps): React.Re
 
             {/* Details */}
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
+              <div className="flex justify-between gap-4">
                 <span className="text-gray-500">Operation:</span>
                 <span className="text-white font-mono">{operation.label}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between gap-4">
                 <span className="text-gray-500">Method:</span>
                 <span className="text-white font-mono">{result.method}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Path:</span>
-                <span className="text-white font-mono text-xs">{result.path}</span>
+              <div className="flex justify-between gap-4">
+                <span className="text-gray-500 shrink-0">Path:</span>
+                <span className="text-white font-mono text-xs truncate">{result.path}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between gap-4">
                 <span className="text-gray-500">Status:</span>
                 <span className="text-white">{result.status} {result.statusText}</span>
               </div>
               
-              {result.accessPolicy && (
-                <div className="mt-3 pt-3 border-t border-white/5">
-                  <span className="text-gray-500 block mb-1">Access Policy:</span>
-                  <span className="text-aurora-green font-mono text-xs bg-aurora-green/10 px-2 py-1 rounded">
+              <div className="mt-3 pt-3 border-t border-white/5">
+                <span className="text-gray-500 block mb-1">Access Policy:</span>
+                {result.accessPolicy ? (
+                  <span className="text-aurora-green font-mono text-xs bg-aurora-green/10 px-2 py-1 rounded inline-block">
                     {result.accessPolicy}
                   </span>
-                </div>
-              )}
+                ) : (
+                  <span className="text-gray-400 text-xs italic">
+                    {result.allowed ? 'Not reported by server' : 'N/A'}
+                  </span>
+                )}
+              </div>
 
-              {result.error && (
+              {result.error != null && (
                 <div className="mt-3 pt-3 border-t border-white/5">
                   <span className="text-gray-500 block mb-1">Error:</span>
-                  <pre className="text-red-400 text-xs bg-red-500/10 p-2 rounded overflow-x-auto max-w-[300px]">
-                    {typeof result.error === 'object' 
+                  <pre className="text-red-400 text-xs bg-red-500/10 p-2 rounded overflow-auto max-w-[350px] max-h-[200px]">
+                    {typeof result.error === 'object' && result.error !== null
                       ? JSON.stringify(result.error, null, 2) 
                       : String(result.error)}
                   </pre>
@@ -146,7 +185,7 @@ function StatusCell({ result, isLoading, operation }: StatusCellProps): React.Re
             </div>
 
             {/* Arrow */}
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-midnight-800 border-r border-b border-white/10 rotate-45" />
+            <div className={`absolute -bottom-2 ${arrowPositionClass} w-4 h-4 bg-midnight-800 border-r border-b border-white/10 rotate-45`} />
           </div>
         </div>
       )}
