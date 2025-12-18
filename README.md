@@ -75,7 +75,13 @@ cd xmas-hackaton-health-samurai-2025
 
 2. **Configure environment variables**
 
-Create a `.env` file in the `backend` directory:
+Copy the example environment file and edit it with your Aidbox credentials:
+```bash
+cd backend
+cp .env.example .env
+```
+
+Then edit `.env` with your values:
 ```env
 # Aidbox Configuration
 AIDBOX_URL=https://your-aidbox-instance.aidbox.app
@@ -163,15 +169,15 @@ The visualizer tests access for common FHIR resources:
 ## 🎨 Tech Stack
 
 ### Frontend
-- React 18
+- React 18 + TypeScript
 - Tailwind CSS
 - Lucide Icons
 - Vite
 
 ### Backend
-- Node.js
+- Node.js + TypeScript
 - Express
-- node-fetch
+- tsx (TypeScript execution)
 
 ## 📝 License
 
