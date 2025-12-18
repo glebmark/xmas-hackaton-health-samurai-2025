@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Shield, Users, GitCompare, RefreshCw } from 'lucide-react';
 import UserSelector from './components/UserSelector';
 import AccessMatrix from './components/AccessMatrix';
@@ -32,9 +32,33 @@ function App(): React.ReactElement {
   });
   const [error, setError] = useState<string | null>(null);
 
+  // Track if testing was initiated to auto-retest on pagination
+  const hasTestedRef = useRef(false);
+
   useEffect(() => {
     fetchResources(pagination.currentPage);
   }, [pagination.currentPage]);
+
+  // Reset tested flag when user or compare mode changes
+  useEffect(() => {
+    hasTestedRef.current = false;
+    setAccessResults(null);
+    setCompareResults(null);
+  }, [selectedUser, compareUser, isCompareMode]);
+
+  // Auto-test access when resources change (after pagination) if testing was initiated
+  useEffect(() => {
+    if (
+      hasTestedRef.current &&
+      selectedUser &&
+      resources.length > 0 &&
+      !isLoading
+    ) {
+      // Automatically test the new page
+      testAccess();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resources]);
 
   const fetchResources = async (page: number): Promise<void> => {
     try {
@@ -53,6 +77,7 @@ function App(): React.ReactElement {
   const testAccess = async (): Promise<void> => {
     if (!selectedUser) return;
 
+    hasTestedRef.current = true;
     setIsLoading(true);
     setError(null);
 
@@ -110,8 +135,6 @@ function App(): React.ReactElement {
 
   const handlePageChange = (newPage: number): void => {
     setPagination((prev) => ({ ...prev, currentPage: newPage }));
-    setAccessResults(null);
-    setCompareResults(null);
   };
 
   return (
