@@ -25,6 +25,7 @@ export interface AccessTestResult {
   statusText: string;
   accessPolicy: string | null;
   allowed: boolean;
+  unauthorized: boolean;
   denied: boolean;
   notFound: boolean;
   error?: unknown;

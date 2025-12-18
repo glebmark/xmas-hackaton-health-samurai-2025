@@ -270,6 +270,7 @@ class AidboxService {
           statusText: this.getStatusText(status),
           accessPolicy: null, // Batch responses don't include this header per-entry
           allowed: status >= 200 && status < 300,
+          unauthorized: status === 401,
           denied: status === 403,
           notFound: status === 404,
           error: status >= 400 ? entry?.resource : undefined,
@@ -358,6 +359,7 @@ class AidboxService {
           statusText: 'Error',
           accessPolicy: null,
           allowed: false,
+          unauthorized: status === 401,
           denied: status === 403,
           notFound: false,
           error,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, X, AlertTriangle, FileQuestion, ChevronLeft, ChevronRight, User as UserIcon, Key, Equal, ArrowRight, LucideIcon } from 'lucide-react';
+import { Check, AlertTriangle, FileQuestion, ChevronLeft, ChevronRight, User as UserIcon, Key, Equal, ArrowRight, LucideIcon, ShieldX, Ban } from 'lucide-react';
 import type { ResourceInfo, Pagination, CompareResults, User, AccessTestResult, OperationInfo } from '../types';
 
 const OPERATIONS: OperationInfo[] = [
@@ -29,7 +29,8 @@ function CompareView({ results, resources, user1, user2, pagination, onPageChang
   const getStatusIcon = (result: AccessTestResult | undefined): StatusIconResult => {
     if (!result) return { icon: AlertTriangle, className: 'text-gray-500' };
     if (result.allowed) return { icon: Check, className: 'text-green-400' };
-    if (result.denied) return { icon: X, className: 'text-red-400' };
+    if (result.unauthorized) return { icon: ShieldX, className: 'text-orange-400' };
+    if (result.denied) return { icon: Ban, className: 'text-red-400' };
     if (result.notFound) return { icon: FileQuestion, className: 'text-yellow-400' };
     return { icon: AlertTriangle, className: 'text-gray-400' };
   };
@@ -38,6 +39,7 @@ function CompareView({ results, resources, user1, user2, pagination, onPageChang
     const getStatus = (r: AccessTestResult | undefined): string => {
       if (!r) return 'error';
       if (r.allowed) return 'allowed';
+      if (r.unauthorized) return 'unauthorized';
       if (r.denied) return 'denied';
       if (r.notFound) return 'notFound';
       return 'error';
@@ -143,7 +145,7 @@ function CompareView({ results, resources, user1, user2, pagination, onPageChang
                         isSame ? 'bg-midnight-700' : 'bg-aurora-orange/10 border border-aurora-orange/30'
                       }`}>
                         <div className={`w-6 h-6 rounded flex items-center justify-center ${
-                          res1?.allowed ? 'bg-green-500/20' : res1?.denied ? 'bg-red-500/20' : 'bg-gray-500/20'
+                          res1?.allowed ? 'bg-green-500/20' : res1?.unauthorized ? 'bg-orange-500/20' : res1?.denied ? 'bg-red-500/20' : 'bg-gray-500/20'
                         }`}>
                           <Icon1 className={`w-3 h-3 ${status1.className}`} />
                         </div>
@@ -155,7 +157,7 @@ function CompareView({ results, resources, user1, user2, pagination, onPageChang
                           )}
                         </div>
                         <div className={`w-6 h-6 rounded flex items-center justify-center ${
-                          res2?.allowed ? 'bg-green-500/20' : res2?.denied ? 'bg-red-500/20' : 'bg-gray-500/20'
+                          res2?.allowed ? 'bg-green-500/20' : res2?.unauthorized ? 'bg-orange-500/20' : res2?.denied ? 'bg-red-500/20' : 'bg-gray-500/20'
                         }`}>
                           <Icon2 className={`w-3 h-3 ${status2.className}`} />
                         </div>

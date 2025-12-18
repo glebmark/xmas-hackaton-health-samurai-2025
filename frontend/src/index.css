@@ -94,7 +94,13 @@ body {
   color: #4ade80;
 }
 
-.status-denied {
+.status-unauthorized {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.2) 0%, rgba(249, 115, 22, 0.1) 100%);
+  border: 1px solid rgba(249, 115, 22, 0.4);
+  color: #fb923c;
+}
+
+.status-forbidden {
   background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%);
   border: 1px solid rgba(239, 68, 68, 0.4);
   color: #f87171;

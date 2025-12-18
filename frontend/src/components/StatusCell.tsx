@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, X, AlertTriangle, HelpCircle, FileQuestion, Loader2, LucideIcon } from 'lucide-react';
+import { Check, X, AlertTriangle, HelpCircle, FileQuestion, Loader2, LucideIcon, ShieldX, Ban } from 'lucide-react';
 import type { AccessTestResult, OperationInfo } from '../types';
 
 interface StatusCellProps {
@@ -48,11 +48,19 @@ function StatusCell({ result, isLoading, operation }: StatusCellProps): React.Re
         color: 'text-green-400',
       };
     }
+    if (result.unauthorized) {
+      return {
+        icon: ShieldX,
+        className: 'status-unauthorized',
+        label: 'Unauthorized (401)',
+        color: 'text-orange-400',
+      };
+    }
     if (result.denied) {
       return {
-        icon: X,
-        className: 'status-denied',
-        label: 'Denied (403)',
+        icon: Ban,
+        className: 'status-forbidden',
+        label: 'Forbidden (403)',
         color: 'text-red-400',
       };
     }

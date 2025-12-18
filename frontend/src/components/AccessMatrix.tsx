@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, X, AlertTriangle, HelpCircle, ChevronLeft, ChevronRight, FileQuestion } from 'lucide-react';
+import { Check, X, AlertTriangle, ChevronLeft, ChevronRight, FileQuestion, ShieldX, Ban } from 'lucide-react';
 import StatusCell from './StatusCell';
 import type { ResourceInfo, Pagination, ResourceAccessResults, OperationInfo } from '../types';
 
@@ -41,10 +41,16 @@ function AccessMatrix({ results, resources, isLoading, pagination, onPageChange 
             <span className="text-gray-400">Allowed</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-4 h-4 rounded status-denied flex items-center justify-center">
-              <X className="w-3 h-3" />
+            <div className="w-4 h-4 rounded status-unauthorized flex items-center justify-center">
+              <ShieldX className="w-3 h-3" />
             </div>
-            <span className="text-gray-400">Denied</span>
+            <span className="text-gray-400">Unauthorized</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-4 rounded status-forbidden flex items-center justify-center">
+              <Ban className="w-3 h-3" />
+            </div>
+            <span className="text-gray-400">Forbidden</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-4 h-4 rounded status-not-found flex items-center justify-center">
