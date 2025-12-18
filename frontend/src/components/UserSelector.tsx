@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, User as UserIcon, Key, ChevronDown, X } from 'lucide-react';
 import type { User, AidboxUser, AidboxClient } from '../types';
 
@@ -17,17 +18,32 @@ function UserSelector({ label, value, onChange, placeholder }: UserSelectorProps
   const [isLoading, setIsLoading] = useState(false);
   const [password, setPassword] = useState('');
   const [showPasswordInput, setShowPasswordInput] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent): void => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+        if (buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
+          setIsOpen(false);
+        }
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 8,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -92,43 +108,45 @@ function UserSelector({ label, value, onChange, placeholder }: UserSelectorProps
   };
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative">
       <label className="block text-sm font-medium text-gray-400 mb-2">{label}</label>
       
-      {value ? (
-        <div className="flex items-center gap-2">
-          <div className="flex-1 flex items-center gap-3 px-4 py-3 bg-midnight-700 border border-white/10 rounded-xl">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-              value.type === 'client' ? 'bg-aurora-purple/20' : 'bg-aurora-blue/20'
-            }`}>
-              {value.type === 'client' ? (
-                <Key className="w-4 h-4 text-aurora-purple" />
-              ) : (
-                <UserIcon className="w-4 h-4 text-aurora-blue" />
-              )}
+      <div ref={buttonRef}>
+        {value ? (
+          <div className="flex items-center gap-2">
+            <div className="flex-1 flex items-center gap-3 px-4 py-3 bg-midnight-700 border border-white/10 rounded-xl">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                value.type === 'client' ? 'bg-aurora-purple/20' : 'bg-aurora-blue/20'
+              }`}>
+                {value.type === 'client' ? (
+                  <Key className="w-4 h-4 text-aurora-purple" />
+                ) : (
+                  <UserIcon className="w-4 h-4 text-aurora-blue" />
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="text-white font-medium">{value.id || value.name?.givenName || 'Unknown'}</p>
+                <p className="text-xs text-gray-500">
+                  {value.type === 'client' ? 'Client' : 'User'}
+                  {value.password || value.secret ? ' • Authenticated' : ' • Password required'}
+                </p>
+              </div>
+              <button onClick={clearSelection} className="p-1 hover:bg-white/5 rounded-lg transition-colors">
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
             </div>
-            <div className="flex-1">
-              <p className="text-white font-medium">{value.id || value.name?.givenName || 'Unknown'}</p>
-              <p className="text-xs text-gray-500">
-                {value.type === 'client' ? 'Client' : 'User'}
-                {value.password || value.secret ? ' • Authenticated' : ' • Password required'}
-              </p>
-            </div>
-            <button onClick={clearSelection} className="p-1 hover:bg-white/5 rounded-lg transition-colors">
-              <X className="w-4 h-4 text-gray-400" />
-            </button>
           </div>
-        </div>
-      ) : (
-        <button
-          onClick={() => setIsOpen(true)}
-          className="w-full flex items-center gap-3 px-4 py-3 bg-midnight-700 border border-white/10 rounded-xl hover:border-aurora-green/30 transition-all text-left"
-        >
-          <Search className="w-5 h-5 text-gray-500" />
-          <span className="text-gray-500">{placeholder}</span>
-          <ChevronDown className="w-5 h-5 text-gray-500 ml-auto" />
-        </button>
-      )}
+        ) : (
+          <button
+            onClick={() => setIsOpen(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 bg-midnight-700 border border-white/10 rounded-xl hover:border-aurora-green/30 transition-all text-left"
+          >
+            <Search className="w-5 h-5 text-gray-500" />
+            <span className="text-gray-500">{placeholder}</span>
+            <ChevronDown className="w-5 h-5 text-gray-500 ml-auto" />
+          </button>
+        )}
+      </div>
 
       {/* Password Input Modal */}
       {showPasswordInput && value && value.type === 'user' && (
@@ -155,9 +173,17 @@ function UserSelector({ label, value, onChange, placeholder }: UserSelectorProps
         </div>
       )}
 
-      {/* Dropdown */}
-      {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-midnight-700 border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden">
+      {/* Dropdown using Portal */}
+      {isOpen && createPortal(
+        <div 
+          ref={dropdownRef}
+          className="fixed bg-midnight-700 border border-white/10 rounded-xl shadow-xl z-[9999] overflow-hidden"
+          style={{
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`,
+            width: `${dropdownPosition.width}px`,
+          }}
+        >
           <div className="p-3 border-b border-white/5">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -237,7 +263,8 @@ function UserSelector({ label, value, onChange, placeholder }: UserSelectorProps
               </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
