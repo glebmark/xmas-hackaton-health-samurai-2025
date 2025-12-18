@@ -38,7 +38,7 @@ router.post('/test', async (req: Request<object, unknown, TestRequestBody>, res:
   }
 });
 
-// Test access for multiple resource types
+// Test access for multiple resource types using efficient FHIR Batch
 router.post('/test-batch', async (req: Request<object, unknown, TestBatchRequestBody>, res: Response, next: NextFunction) => {
   try {
     const { resourceTypes, userAuth } = req.body;
@@ -48,22 +48,11 @@ router.post('/test-batch', async (req: Request<object, unknown, TestBatchRequest
       return;
     }
 
-    const results: Record<string, Awaited<ReturnType<typeof aidboxService.testAllOperations>>> = {};
+    // Get sample IDs for all resources in a single batch request
+    const sampleIds = await aidboxService.getResourceSamples(resourceTypes);
 
-    // Get sample IDs for resources that exist
-    const sampleIds: Record<string, string | null> = {};
-    for (const resourceType of resourceTypes) {
-      sampleIds[resourceType] = await aidboxService.getResourceSample(resourceType);
-    }
-
-    // Test access for each resource type
-    for (const resourceType of resourceTypes) {
-      results[resourceType] = await aidboxService.testAllOperations(
-        resourceType, 
-        userAuth, 
-        sampleIds[resourceType]
-      );
-    }
+    // Test all access in a single batch request
+    const results = await aidboxService.testAccessBatch(resourceTypes, userAuth, sampleIds);
 
     res.json(results);
   } catch (error) {
@@ -71,7 +60,7 @@ router.post('/test-batch', async (req: Request<object, unknown, TestBatchRequest
   }
 });
 
-// Compare access between two users
+// Compare access between two users using efficient FHIR Batch
 router.post('/compare', async (req: Request<object, unknown, CompareRequestBody>, res: Response, next: NextFunction) => {
   try {
     const { resourceTypes, userAuth1, userAuth2 } = req.body;
@@ -81,38 +70,19 @@ router.post('/compare', async (req: Request<object, unknown, CompareRequestBody>
       return;
     }
 
-    const results: CompareResults = {
-      user1: {},
-      user2: {},
-    };
+    // Get sample IDs once (shared between both users)
+    const sampleIds = await aidboxService.getResourceSamples(resourceTypes);
 
-    // Get sample IDs for resources
-    const sampleIds: Record<string, string | null> = {};
-    for (const resourceType of resourceTypes) {
-      sampleIds[resourceType] = await aidboxService.getResourceSample(resourceType);
-    }
-
-    // Test both users in parallel
-    await Promise.all([
-      (async () => {
-        for (const resourceType of resourceTypes) {
-          results.user1[resourceType] = await aidboxService.testAllOperations(
-            resourceType, 
-            userAuth1, 
-            sampleIds[resourceType]
-          );
-        }
-      })(),
-      (async () => {
-        for (const resourceType of resourceTypes) {
-          results.user2[resourceType] = await aidboxService.testAllOperations(
-            resourceType, 
-            userAuth2, 
-            sampleIds[resourceType]
-          );
-        }
-      })(),
+    // Test both users in parallel, each using a single batch request
+    const [user1Results, user2Results] = await Promise.all([
+      aidboxService.testAccessBatch(resourceTypes, userAuth1, sampleIds),
+      aidboxService.testAccessBatch(resourceTypes, userAuth2, sampleIds),
     ]);
+
+    const results: CompareResults = {
+      user1: user1Results,
+      user2: user2Results,
+    };
 
     res.json(results);
   } catch (error) {
@@ -121,4 +91,3 @@ router.post('/compare', async (req: Request<object, unknown, CompareRequestBody>
 });
 
 export default router;
-

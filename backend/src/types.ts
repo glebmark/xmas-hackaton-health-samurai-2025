@@ -70,3 +70,48 @@ export interface CompareResults {
   user2: Record<string, AccessTestResults>;
 }
 
+// FHIR Batch Request/Response types
+export interface BatchRequestEntry {
+  fullUrl: string;
+  request: {
+    method: string;
+    url: string;
+  };
+  resource?: unknown;
+}
+
+export interface BatchRequest {
+  resourceType: 'Bundle';
+  type: 'batch';
+  entry: BatchRequestEntry[];
+}
+
+export interface BatchResponseEntry {
+  fullUrl?: string;
+  resource?: {
+    resourceType: string;
+    id?: string;
+    issue?: Array<{
+      severity: string;
+      code: string;
+      diagnostics?: string;
+    }>;
+    [key: string]: unknown;
+  };
+  response: {
+    status: string;
+    outcome?: unknown;
+  };
+}
+
+export interface BatchResponse {
+  resourceType: 'Bundle';
+  type: 'batch-response';
+  entry: BatchResponseEntry[];
+}
+
+export interface OperationConfig {
+  key: string;
+  method: string;
+  getUrl: (resourceType: string, resourceId?: string) => string;
+}
