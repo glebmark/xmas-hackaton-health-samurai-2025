@@ -21,6 +21,11 @@ function UserSelector({ label, value, onChange, placeholder }: UserSelectorProps
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
+  
+  // Cache for initial data (when search is empty)
+  const cachedInitialUsers = useRef<AidboxUser[]>([]);
+  const cachedInitialClients = useRef<AidboxClient[]>([]);
+  const hasFetchedInitialData = useRef(false);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent): void => {
@@ -45,29 +50,58 @@ function UserSelector({ label, value, onChange, placeholder }: UserSelectorProps
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchUsersAndClients();
-    }
-  }, [isOpen, search]);
-
-  const fetchUsersAndClients = async (): Promise<void> => {
+  const fetchUsersAndClients = async (searchQuery: string): Promise<void> => {
+    console.log('🔍 Fetching users/clients with query:', searchQuery);
     setIsLoading(true);
     try {
       const [usersRes, clientsRes] = await Promise.all([
-        fetch(`/api/users?q=${encodeURIComponent(search)}`),
-        fetch(`/api/users/clients?q=${encodeURIComponent(search)}`),
+        fetch(`/api/users?q=${encodeURIComponent(searchQuery)}`),
+        fetch(`/api/users/clients?q=${encodeURIComponent(searchQuery)}`),
       ]);
+      
+      console.log('📡 Response status:', usersRes.status, clientsRes.status);
+      
       const usersData: AidboxUser[] = await usersRes.json();
       const clientsData: AidboxClient[] = await clientsRes.json();
+      
+      console.log('✅ Received:', usersData.length, 'users,', clientsData.length, 'clients');
+      
       setUsers(usersData);
       setClients(clientsData);
+      
+      // Cache initial data (when search is empty) for future use
+      if (!searchQuery) {
+        cachedInitialUsers.current = usersData;
+        cachedInitialClients.current = clientsData;
+        hasFetchedInitialData.current = true;
+      }
     } catch (err) {
-      console.error('Failed to fetch users/clients:', err);
+      console.error('❌ Failed to fetch users/clients:', err);
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      if (search) {
+        // Debounce search: wait 300ms after user stops typing
+        const timeoutId = setTimeout(() => {
+          fetchUsersAndClients(search);
+        }, 300);
+        return () => clearTimeout(timeoutId);
+      } else {
+        // For empty search, use cached data if available
+        if (hasFetchedInitialData.current) {
+          setUsers(cachedInitialUsers.current);
+          setClients(cachedInitialClients.current);
+        } else {
+          // Fetch initial data only once
+          fetchUsersAndClients('');
+        }
+      }
+    }
+  }, [isOpen, search]);
 
   const handleSelect = (item: AidboxUser | AidboxClient, type: 'user' | 'client'): void => {
     if (type === 'client') {

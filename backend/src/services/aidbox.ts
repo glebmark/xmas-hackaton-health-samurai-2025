@@ -268,17 +268,27 @@ class AidboxService {
   }
 
   async searchUsers(query: string = ''): Promise<AidboxUser[]> {
-    const searchParam = query ? `&.name:ilike=${encodeURIComponent(query)}` : '';
-    const response = await this.request(`/User?_count=50${searchParam}`);
+    // Search by id using Aidbox _ilike parameter
+    const searchParam = query ? `&_ilike=${encodeURIComponent(query)}` : '';
+    const url = `/User?_count=50${searchParam}`;
+    console.log(`🔍 Searching users: ${url}`);
+    const response = await this.request(url);
     const data = await response.json() as Bundle<AidboxUser>;
-    return data.entry?.map(e => e.resource) || [];
+    const users = data.entry?.map(e => e.resource) || [];
+    console.log(`✅ Found ${users.length} users`);
+    return users;
   }
 
   async getClients(query: string = ''): Promise<AidboxClient[]> {
-    const searchParam = query ? `&.id:ilike=${encodeURIComponent(query)}` : '';
-    const response = await this.request(`/Client?_count=50${searchParam}`);
+    // Search by id using Aidbox _ilike parameter
+    const searchParam = query ? `&_ilike=${encodeURIComponent(query)}` : '';
+    const url = `/Client?_count=50${searchParam}`;
+    console.log(`🔍 Searching clients: ${url}`);
+    const response = await this.request(url);
     const data = await response.json() as Bundle<AidboxClient>;
-    return data.entry?.map(e => e.resource) || [];
+    const clients = data.entry?.map(e => e.resource) || [];
+    console.log(`✅ Found ${clients.length} clients`);
+    return clients;
   }
 
   /**
