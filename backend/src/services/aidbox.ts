@@ -276,6 +276,19 @@ class AidboxService {
     }
   }
 
+  /**
+   * Try to get access policy name from response headers.
+   * Aidbox may return x-access-policy header when BOX_SECURITY_DEV_MODE is enabled.
+   * Returns null if not available (this is expected in many configurations).
+   */
+  private getAccessPolicyFromHeaders(response: Response): string | null {
+    // Try various header names that Aidbox might use
+    return response.headers.get('x-access-policy') 
+      || response.headers.get('x-aidbox-access-policy')
+      || response.headers.get('x-debug')
+      || null;
+  }
+
   async searchUsers(query: string = ''): Promise<AidboxUser[]> {
     // Use FHIR API for better compatibility with access policies
     const searchParam = query ? `&name:contains=${encodeURIComponent(query)}` : '';
@@ -459,15 +472,13 @@ class AidboxService {
       const status = response.status;
       const responseBody = await response.json().catch(() => null) as Record<string, unknown> | null;
       
-      // Log first response
+      // Log first search response for debugging
       if (op.key === 'search' && resourceType === 'Patient') {
         console.log(`🔍 Response for ${resourceType}/${op.key}: status=${status}`);
       }
       
-      // Try to get access policy from response headers
-      const accessPolicy = response.headers.get('x-access-policy') 
-        || response.headers.get('x-aidbox-access-policy')
-        || null;
+      // Try to get access policy from response headers (requires BOX_SECURITY_DEV_MODE)
+      const accessPolicy = this.getAccessPolicyFromHeaders(response);
 
       // Determine if access was allowed (vs denied by policy)
       // 404/410/422 mean access was granted but operation failed for other reasons
