@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, AlertTriangle, HelpCircle, FileQuestion, Loader2, LucideIcon, ShieldX, Ban } from 'lucide-react';
 import type { AccessTestResult, OperationInfo } from '../types';
 
@@ -19,13 +20,25 @@ interface StatusInfo {
 
 function StatusCell({ result, isLoading, operation, isRightmost = false }: StatusCellProps): React.ReactElement {
   const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const handleMouseEnter = () => {
     if (hideTimeoutRef.current) {
       clearTimeout(hideTimeoutRef.current);
       hideTimeoutRef.current = null;
     }
+    
+    // Calculate tooltip position
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setTooltipPosition({
+        top: rect.top + window.scrollY,
+        left: rect.left + window.scrollX + rect.width / 2,
+      });
+    }
+    
     setShowTooltip(true);
   };
 
@@ -100,18 +113,10 @@ function StatusCell({ result, isLoading, operation, isRightmost = false }: Statu
   const status = getStatusInfo();
   const Icon = status.icon;
 
-  // Position tooltip to the left for rightmost columns
-  const tooltipPositionClass = isRightmost 
-    ? 'right-0 translate-x-0' 
-    : 'left-1/2 -translate-x-1/2';
-  
-  const arrowPositionClass = isRightmost
-    ? 'right-4'
-    : 'left-1/2 -translate-x-1/2';
-
   return (
     <div className="relative flex justify-center">
       <button
+        ref={buttonRef}
         className={`w-10 h-10 rounded-lg ${status.className} flex items-center justify-center transition-all hover:scale-110 cursor-pointer relative`}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -124,10 +129,15 @@ function StatusCell({ result, isLoading, operation, isRightmost = false }: Statu
         )}
       </button>
 
-      {/* Tooltip - stays open when you hover over it */}
-      {showTooltip && (
+      {/* Tooltip - rendered in portal */}
+      {showTooltip && createPortal(
         <div 
-          className={`absolute bottom-full ${tooltipPositionClass} mb-2 z-50 animate-fade-in`}
+          className="fixed z-[9999] animate-fade-in"
+          style={{
+            top: `${tooltipPosition.top}px`,
+            left: `${tooltipPosition.left}px`,
+            transform: isRightmost ? 'translate(-100%, -100%) translateY(-8px)' : 'translate(-50%, -100%) translateY(-8px)',
+          }}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
@@ -185,9 +195,17 @@ function StatusCell({ result, isLoading, operation, isRightmost = false }: Statu
             </div>
 
             {/* Arrow */}
-            <div className={`absolute -bottom-2 ${arrowPositionClass} w-4 h-4 bg-midnight-800 border-r border-b border-white/10 rotate-45`} />
+            <div 
+              className="absolute -bottom-2 w-4 h-4 bg-midnight-800 border-r border-b border-white/10 rotate-45"
+              style={{
+                left: isRightmost ? 'auto' : '50%',
+                right: isRightmost ? '16px' : 'auto',
+                transform: isRightmost ? 'rotate(45deg)' : 'translateX(-50%) rotate(45deg)',
+              }}
+            />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

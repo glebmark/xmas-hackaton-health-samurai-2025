@@ -46,7 +46,7 @@ function AccessMatrix({
   onPageChange,
 }: AccessMatrixProps): React.ReactElement {
   return (
-    <div className='glass rounded-2xl animate-slide-up stagger-2'>
+    <div className='glass rounded-2xl animate-slide-up stagger-2 relative z-10'>
       {/* Header */}
       <div className='px-6 py-4 border-b border-white/5 flex items-center justify-between'>
         <div>

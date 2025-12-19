@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { Search, User as UserIcon, Key, ChevronDown, X } from 'lucide-react';
 import type { User, AidboxUser, AidboxClient } from '../types';
 
@@ -18,9 +17,8 @@ function UserSelector({ label, value, onChange, placeholder }: UserSelectorProps
   const [isLoading, setIsLoading] = useState(false);
   const [password, setPassword] = useState('');
   const [showPasswordInput, setShowPasswordInput] = useState(false);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   
   // Cache for initial data (when search is empty)
   const cachedInitialUsers = useRef<AidboxUser[]>([]);
@@ -29,26 +27,13 @@ function UserSelector({ label, value, onChange, placeholder }: UserSelectorProps
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent): void => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        if (buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
-          setIsOpen(false);
-        }
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + window.scrollY + 8,
-        left: rect.left + window.scrollX,
-        width: rect.width,
-      });
-    }
-  }, [isOpen]);
 
   const fetchUsersAndClients = async (searchQuery: string): Promise<void> => {
     console.log('🔍 Fetching users/clients with query:', searchQuery);
@@ -142,10 +127,10 @@ function UserSelector({ label, value, onChange, placeholder }: UserSelectorProps
   };
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <label className="block text-sm font-medium text-gray-400 mb-2">{label}</label>
       
-      <div ref={buttonRef}>
+      <div>
         {value ? (
           <div className="flex items-center gap-2">
             <div className="flex-1 flex items-center gap-3 px-4 py-3 bg-midnight-700 border border-white/10 rounded-xl">
@@ -207,16 +192,11 @@ function UserSelector({ label, value, onChange, placeholder }: UserSelectorProps
         </div>
       )}
 
-      {/* Dropdown using Portal */}
-      {isOpen && createPortal(
+      {/* Dropdown */}
+      {isOpen && (
         <div 
           ref={dropdownRef}
-          className="fixed bg-midnight-700 border border-white/10 rounded-xl shadow-xl z-[9999] overflow-hidden"
-          style={{
-            top: `${dropdownPosition.top}px`,
-            left: `${dropdownPosition.left}px`,
-            width: `${dropdownPosition.width}px`,
-          }}
+          className="absolute top-full left-0 right-0 mt-2 bg-midnight-700 border border-white/10 rounded-xl shadow-xl z-[100] overflow-hidden"
         >
           <div className="p-3 border-b border-white/5">
             <div className="relative">
@@ -297,8 +277,7 @@ function UserSelector({ label, value, onChange, placeholder }: UserSelectorProps
               </>
             )}
           </div>
-        </div>,
-        document.body
+        </div>
       )}
     </div>
   );

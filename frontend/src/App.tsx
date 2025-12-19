@@ -148,7 +148,7 @@ function App(): React.ReactElement {
 
         <main className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>
           {/* User Selection Section */}
-          <div className='glass rounded-2xl p-6 mb-8 animate-slide-up relative'>
+          <div className='glass rounded-2xl p-6 mb-8 animate-slide-up relative z-20'>
             <div className='flex items-center gap-3 mb-6'>
               <div className='w-10 h-10 rounded-xl bg-gradient-to-br from-aurora-green to-aurora-blue flex items-center justify-center'>
                 <Users className='w-5 h-5 text-white' />
