@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Check, AlertTriangle, FileQuestion, ChevronLeft, ChevronRight, User as UserIcon, Key, Equal, ArrowRight, LucideIcon, ShieldX, Ban } from 'lucide-react';
 import type { ResourceInfo, Pagination, CompareResults, User, AccessTestResult, OperationInfo } from '../types';
 
@@ -18,6 +18,7 @@ interface CompareViewProps {
   user2: User | null;
   pagination: Pagination;
   onPageChange: (page: number) => void;
+  groupByCategory: boolean;
 }
 
 interface StatusIconResult {
@@ -25,7 +26,7 @@ interface StatusIconResult {
   className: string;
 }
 
-function CompareView({ results, resources, user1, user2, pagination, onPageChange }: CompareViewProps): React.ReactElement {
+function CompareView({ results, resources, user1, user2, pagination, onPageChange, groupByCategory }: CompareViewProps): React.ReactElement {
   const getStatusIcon = (result: AccessTestResult | undefined): StatusIconResult => {
     if (!result) return { icon: AlertTriangle, className: 'text-gray-500' };
     if (result.allowed) return { icon: Check, className: 'text-green-400' };
@@ -46,6 +47,82 @@ function CompareView({ results, resources, user1, user2, pagination, onPageChang
     };
     return getStatus(res1) === getStatus(res2);
   };
+
+  // Always show all resources (no status filtering)
+  const filteredResources = resources;
+
+  // Group resources by category if enabled
+  const groupedResources = useMemo(() => {
+    if (!groupByCategory) {
+      return { '': filteredResources };
+    }
+
+    const groups: Record<string, ResourceInfo[]> = {};
+    filteredResources.forEach((resource) => {
+      const category = resource.category || 'Other';
+      if (!groups[category]) {
+        groups[category] = [];
+      }
+      groups[category].push(resource);
+    });
+
+    return groups;
+  }, [filteredResources, groupByCategory]);
+
+  const renderResourceRow = (resource: ResourceInfo, index: number): React.ReactElement => (
+    <tr
+      key={resource.name}
+      className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+    >
+      <td className="px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-aurora-green/20 to-aurora-blue/20 flex items-center justify-center">
+            <span className="text-xs font-bold text-aurora-green">
+              {resource.name.slice(0, 2).toUpperCase()}
+            </span>
+          </div>
+          <div>
+            <p className="text-white font-medium">{resource.name}</p>
+          </div>
+        </div>
+      </td>
+      {OPERATIONS.map((op) => {
+        const res1 = results?.user1?.[resource.name]?.[op.key];
+        const res2 = results?.user2?.[resource.name]?.[op.key];
+        const status1 = getStatusIcon(res1);
+        const status2 = getStatusIcon(res2);
+        const isSame = compareResults(res1, res2);
+        const Icon1 = status1.icon;
+        const Icon2 = status2.icon;
+
+        return (
+          <td key={op.key} className="px-3 py-4">
+            <div className={`flex items-center justify-center gap-1 p-2 rounded-lg ${
+              isSame ? 'bg-midnight-700' : 'bg-aurora-orange/10 border border-aurora-orange/30'
+            }`}>
+              <div className={`w-6 h-6 rounded flex items-center justify-center ${
+                res1?.allowed ? 'bg-green-500/20' : res1?.unauthorized ? 'bg-orange-500/20' : res1?.denied ? 'bg-red-500/20' : 'bg-gray-500/20'
+              }`}>
+                <Icon1 className={`w-3 h-3 ${status1.className}`} />
+              </div>
+              <div className="text-gray-500">
+                {isSame ? (
+                  <Equal className="w-3 h-3" />
+                ) : (
+                  <ArrowRight className="w-3 h-3 text-aurora-orange" />
+                )}
+              </div>
+              <div className={`w-6 h-6 rounded flex items-center justify-center ${
+                res2?.allowed ? 'bg-green-500/20' : res2?.unauthorized ? 'bg-orange-500/20' : res2?.denied ? 'bg-red-500/20' : 'bg-gray-500/20'
+              }`}>
+                <Icon2 className={`w-3 h-3 ${status2.className}`} />
+              </div>
+            </div>
+          </td>
+        );
+      })}
+    </tr>
+  );
 
   return (
     <div className="glass rounded-2xl overflow-hidden animate-slide-up stagger-2">
@@ -113,60 +190,35 @@ function CompareView({ results, resources, user1, user2, pagination, onPageChang
             </tr>
           </thead>
           <tbody>
-            {resources.map((resource) => (
-              <tr
-                key={resource.name}
-                className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
-              >
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-aurora-green/20 to-aurora-blue/20 flex items-center justify-center">
-                      <span className="text-xs font-bold text-aurora-green">
-                        {resource.name.slice(0, 2).toUpperCase()}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-white font-medium">{resource.name}</p>
-                    </div>
-                  </div>
-                </td>
-                {OPERATIONS.map((op) => {
-                  const res1 = results?.user1?.[resource.name]?.[op.key];
-                  const res2 = results?.user2?.[resource.name]?.[op.key];
-                  const status1 = getStatusIcon(res1);
-                  const status2 = getStatusIcon(res2);
-                  const isSame = compareResults(res1, res2);
-                  const Icon1 = status1.icon;
-                  const Icon2 = status2.icon;
-
-                  return (
-                    <td key={op.key} className="px-3 py-4">
-                      <div className={`flex items-center justify-center gap-1 p-2 rounded-lg ${
-                        isSame ? 'bg-midnight-700' : 'bg-aurora-orange/10 border border-aurora-orange/30'
-                      }`}>
-                        <div className={`w-6 h-6 rounded flex items-center justify-center ${
-                          res1?.allowed ? 'bg-green-500/20' : res1?.unauthorized ? 'bg-orange-500/20' : res1?.denied ? 'bg-red-500/20' : 'bg-gray-500/20'
-                        }`}>
-                          <Icon1 className={`w-3 h-3 ${status1.className}`} />
-                        </div>
-                        <div className="text-gray-500">
-                          {isSame ? (
-                            <Equal className="w-3 h-3" />
-                          ) : (
-                            <ArrowRight className="w-3 h-3 text-aurora-orange" />
-                          )}
-                        </div>
-                        <div className={`w-6 h-6 rounded flex items-center justify-center ${
-                          res2?.allowed ? 'bg-green-500/20' : res2?.unauthorized ? 'bg-orange-500/20' : res2?.denied ? 'bg-red-500/20' : 'bg-gray-500/20'
-                        }`}>
-                          <Icon2 className={`w-3 h-3 ${status2.className}`} />
-                        </div>
-                      </div>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+            {groupByCategory
+              ? Object.entries(groupedResources).map(
+                  ([category, categoryResources], categoryIndex) => (
+                    <React.Fragment key={category}>
+                      {category && (
+                        <tr className='bg-white/[0.02]'>
+                          <td
+                            colSpan={OPERATIONS.length + 1}
+                            className='px-6 py-3'
+                          >
+                            <div className='flex items-center gap-2'>
+                              <div className='h-px flex-1 bg-gradient-to-r from-transparent via-aurora-blue/30 to-transparent' />
+                              <span className='text-sm font-semibold text-aurora-blue uppercase tracking-wider'>
+                                {category}
+                              </span>
+                              <div className='h-px flex-1 bg-gradient-to-r from-transparent via-aurora-blue/30 to-transparent' />
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {categoryResources.map((resource, index) =>
+                        renderResourceRow(resource, categoryIndex * 10 + index)
+                      )}
+                    </React.Fragment>
+                  )
+                )
+              : filteredResources.map((resource, index) =>
+                  renderResourceRow(resource, index)
+                )}
           </tbody>
         </table>
       </div>

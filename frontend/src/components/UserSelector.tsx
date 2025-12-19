@@ -356,7 +356,8 @@ function UserSelector({
       {isOpen && (
         <div
           ref={dropdownRef}
-          className='absolute top-full left-0 right-0 mt-2 bg-midnight-700 border border-white/10 rounded-xl shadow-xl z-[100] overflow-hidden'
+          className='absolute top-full left-0 right-0 mt-2 bg-midnight-700 border border-white/10 rounded-xl shadow-xl z-[9999] overflow-hidden'
+          style={{ position: 'absolute' }}
         >
           <div className='p-3 border-b border-white/5'>
             <div className='relative'>

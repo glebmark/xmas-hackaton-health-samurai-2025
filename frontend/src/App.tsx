@@ -4,6 +4,7 @@ import UserSelector from './components/UserSelector';
 import AccessMatrix from './components/AccessMatrix';
 import CompareView from './components/CompareView';
 import Header from './components/Header';
+import FilterPanel from './components/FilterPanel';
 import type {
   User,
   ResourceInfo,
@@ -11,6 +12,7 @@ import type {
   ResourceAccessResults,
   CompareResults,
   PaginatedResourcesResponse,
+  ResourceCategory,
 } from './types';
 
 function App(): React.ReactElement {
@@ -32,12 +34,22 @@ function App(): React.ReactElement {
   });
   const [error, setError] = useState<string | null>(null);
 
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [categories, setCategories] = useState<ResourceCategory[]>([]);
+  const [groupByCategory, setGroupByCategory] = useState(false);
+
   // Track if testing was initiated to auto-retest on pagination
   const hasTestedRef = useRef(false);
 
   useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  useEffect(() => {
     fetchResources(pagination.currentPage);
-  }, [pagination.currentPage]);
+  }, [pagination.currentPage, searchQuery, selectedCategory]);
 
   // Reset tested flag when user or compare mode changes
   useEffect(() => {
@@ -60,10 +72,66 @@ function App(): React.ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resources]);
 
+  // Auto-test access after successful password verification (non-compare mode only)
+  useEffect(() => {
+    if (
+      !isCompareMode &&
+      selectedUser &&
+      selectedUser.type === 'user' &&
+      selectedUser.password &&
+      resources.length > 0 &&
+      !isLoading &&
+      !accessResults
+    ) {
+      // Automatically test access after password is verified
+      testAccess();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedUser?.password, isCompareMode]);
+
+  // Auto-test access after client selection (non-compare mode only)
+  useEffect(() => {
+    if (
+      !isCompareMode &&
+      selectedUser &&
+      selectedUser.type === 'client' &&
+      selectedUser.secret &&
+      resources.length > 0 &&
+      !isLoading &&
+      !accessResults
+    ) {
+      // Automatically test access after client is selected
+      testAccess();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedUser?.secret, isCompareMode]);
+
+  const fetchCategories = async (): Promise<void> => {
+    try {
+      const response = await fetch('/api/resources/categories');
+      const data: ResourceCategory[] = await response.json();
+      setCategories(data);
+    } catch (err) {
+      console.error('Failed to fetch categories:', err);
+    }
+  };
+
   const fetchResources = async (page: number): Promise<void> => {
     try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '10',
+      });
+
+      if (searchQuery) {
+        params.append('search', searchQuery);
+      }
+      if (selectedCategory) {
+        params.append('category', selectedCategory);
+      }
+
       const response = await fetch(
-        `/api/resources/paginated?page=${page}&limit=10`
+        `/api/resources/paginated?${params.toString()}`
       );
       const data: PaginatedResourcesResponse = await response.json();
       setResources(data.resources);
@@ -159,6 +227,16 @@ function App(): React.ReactElement {
     setPagination((prev) => ({ ...prev, currentPage: newPage }));
   };
 
+  const handleSearchChange = (query: string): void => {
+    setSearchQuery(query);
+    setPagination((prev) => ({ ...prev, currentPage: 1 })); // Reset to first page
+  };
+
+  const handleCategoryChange = (category: string): void => {
+    setSelectedCategory(category);
+    setPagination((prev) => ({ ...prev, currentPage: 1 })); // Reset to first page
+  };
+
   return (
     <div className='min-h-screen relative'>
       {/* Aurora background */}
@@ -185,7 +263,7 @@ function App(): React.ReactElement {
               </div>
             </div>
 
-            <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+            <div className='grid grid-cols-1 lg:grid-cols-2 gap-6 items-start'>
               <UserSelector
                 label='User / Client'
                 value={selectedUser}
@@ -250,6 +328,17 @@ function App(): React.ReactElement {
             </div>
           )}
 
+          {/* Filter Panel */}
+          <FilterPanel
+            searchQuery={searchQuery}
+            onSearchChange={handleSearchChange}
+            selectedCategory={selectedCategory}
+            onCategoryChange={handleCategoryChange}
+            categories={categories}
+            groupByCategory={groupByCategory}
+            onGroupByCategoryChange={setGroupByCategory}
+          />
+
           {/* Results Matrix */}
           {isCompareMode && compareResults ? (
             <CompareView
@@ -259,6 +348,7 @@ function App(): React.ReactElement {
               user2={compareUser}
               pagination={pagination}
               onPageChange={handlePageChange}
+              groupByCategory={groupByCategory}
             />
           ) : (
             <AccessMatrix
@@ -267,6 +357,7 @@ function App(): React.ReactElement {
               isLoading={isLoading}
               pagination={pagination}
               onPageChange={handlePageChange}
+              groupByCategory={groupByCategory}
             />
           )}
         </main>

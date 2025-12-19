@@ -28,9 +28,19 @@ export interface AidboxClient {
   grant_types?: string[];
 }
 
+export type ResourceCategory = 
+  | 'Clinical' 
+  | 'Administrative' 
+  | 'Financial' 
+  | 'Medication' 
+  | 'Diagnostic' 
+  | 'Workflow'
+  | 'Security';
+
 export interface ResourceInfo {
   name: string;
   description: string;
+  category: ResourceCategory;
 }
 
 export interface AccessTestResult {
