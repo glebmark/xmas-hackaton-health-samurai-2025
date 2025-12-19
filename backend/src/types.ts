@@ -12,6 +12,7 @@ export interface AidboxUser {
 export interface AidboxClient {
   id: string;
   resourceType: 'Client';
+  name?: string;
   secret?: string;
   grant_types?: string[];
 }

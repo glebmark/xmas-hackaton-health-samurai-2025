@@ -5,6 +5,8 @@ export interface User {
     givenName?: string;
     familyName?: string;
   };
+  clientName?: string; // For clients only
+  email?: string;
   password?: string;
   secret?: string;
   grant_types?: string[];
@@ -16,10 +18,12 @@ export interface AidboxUser {
     givenName?: string;
     familyName?: string;
   };
+  email?: string;
 }
 
 export interface AidboxClient {
   id: string;
+  name?: string;
   secret?: string;
   grant_types?: string[];
 }
