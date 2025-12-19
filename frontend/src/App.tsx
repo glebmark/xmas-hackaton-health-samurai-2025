@@ -77,6 +77,28 @@ function App(): React.ReactElement {
   const testAccess = async (): Promise<void> => {
     if (!selectedUser) return;
 
+    // Check if user is authenticated
+    if (selectedUser.type === 'user' && !selectedUser.password) {
+      setError('Please verify user password first');
+      return;
+    }
+    if (selectedUser.type === 'client' && !selectedUser.secret) {
+      setError('Client secret is required');
+      return;
+    }
+
+    // For compare mode, also check compareUser
+    if (isCompareMode && compareUser) {
+      if (compareUser.type === 'user' && !compareUser.password) {
+        setError('Please verify password for comparison user');
+        return;
+      }
+      if (compareUser.type === 'client' && !compareUser.secret) {
+        setError('Comparison client secret is required');
+        return;
+      }
+    }
+
     hasTestedRef.current = true;
     setIsLoading(true);
     setError(null);
@@ -184,7 +206,16 @@ function App(): React.ReactElement {
             <div className='flex items-center gap-4 mt-6'>
               <button
                 onClick={testAccess}
-                disabled={!selectedUser || isLoading}
+                disabled={
+                  !selectedUser ||
+                  isLoading ||
+                  (selectedUser.type === 'user' && !selectedUser.password) ||
+                  (selectedUser.type === 'client' && !selectedUser.secret) ||
+                  (isCompareMode &&
+                    (!compareUser ||
+                      (compareUser.type === 'user' && !compareUser.password) ||
+                      (compareUser.type === 'client' && !compareUser.secret)))
+                }
                 className='flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-aurora-green to-aurora-blue text-white font-medium rounded-xl hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed'
               >
                 {isLoading ? (

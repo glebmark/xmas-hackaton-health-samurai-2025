@@ -309,6 +309,30 @@ class AidboxService {
   }
 
   /**
+   * Verify credentials by making a simple test request
+   * Returns whether the credentials are valid
+   */
+  async verifyCredentials(authHeader: string): Promise<{ valid: boolean; message?: string }> {
+    try {
+      // Make a simple request to get the current user info
+      // This endpoint should be accessible to any authenticated user
+      const response = await this.requestAsUser('/auth/userinfo', { method: 'GET' }, authHeader);
+      
+      if (response.ok) {
+        return { valid: true };
+      } else if (response.status === 401 || response.status === 403) {
+        return { valid: false, message: 'Invalid credentials' };
+      } else {
+        console.error('Unexpected response status:', response.status);
+        return { valid: false, message: `Unexpected error: ${response.status}` };
+      }
+    } catch (error) {
+      console.error('Credential verification error:', error);
+      return { valid: false, message: 'Failed to verify credentials' };
+    }
+  }
+
+  /**
    * Try to get access policy name from response headers.
    * Aidbox may return x-access-policy header when BOX_SECURITY_DEV_MODE is enabled.
    * Returns null if not available (this is expected in many configurations).

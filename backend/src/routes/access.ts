@@ -4,6 +4,13 @@ import type { CompareResults } from '../types.js';
 
 const router = Router();
 
+interface VerifyCredentialsBody {
+  type: 'user' | 'client';
+  id: string;
+  password?: string;
+  secret?: string;
+}
+
 interface TestRequestBody {
   resourceType: string;
   userAuth: UserAuthInfo;
@@ -20,6 +27,53 @@ interface CompareRequestBody {
   userAuth1: UserAuthInfo;
   userAuth2: UserAuthInfo;
 }
+
+// Verify credentials before allowing access testing
+router.post('/verify-credentials', async (req: Request<object, unknown, VerifyCredentialsBody>, res: Response, next: NextFunction) => {
+  try {
+    const { type, id, password, secret } = req.body;
+
+    if (!type || !id) {
+      res.status(400).json({ error: 'type and id are required' });
+      return;
+    }
+
+    if (type === 'user' && !password) {
+      res.status(400).json({ error: 'password is required for users' });
+      return;
+    }
+
+    if (type === 'client' && !secret) {
+      res.status(400).json({ error: 'secret is required for clients' });
+      return;
+    }
+
+    const userAuth: UserAuthInfo = {
+      type,
+      id,
+      ...(type === 'user' ? { password } : { secret }),
+    };
+
+    try {
+      // Try to resolve auth header - this will fail if credentials are invalid
+      const authHeader = await aidboxService.resolveAuthHeader(userAuth);
+      
+      // Make a simple test request to verify the credentials work
+      const testResult = await aidboxService.verifyCredentials(authHeader);
+      
+      if (testResult.valid) {
+        res.json({ valid: true, message: 'Credentials verified successfully' });
+      } else {
+        res.status(401).json({ valid: false, message: testResult.message || 'Invalid credentials' });
+      }
+    } catch (error) {
+      console.error('Credential verification failed:', error);
+      res.status(401).json({ valid: false, message: 'Invalid credentials' });
+    }
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Test access for a specific resource type and user
 router.post('/test', async (req: Request<object, unknown, TestRequestBody>, res: Response, next: NextFunction) => {

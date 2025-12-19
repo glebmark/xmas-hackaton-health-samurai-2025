@@ -6,6 +6,8 @@ import {
   ChevronDown,
   X,
   Loader2,
+  AlertCircle,
+  CheckCircle,
 } from 'lucide-react';
 import type { User, AidboxUser, AidboxClient } from '../types';
 
@@ -29,6 +31,11 @@ function UserSelector({
   const [isLoading, setIsLoading] = useState(false);
   const [password, setPassword] = useState('');
   const [showPasswordInput, setShowPasswordInput] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationError, setVerificationError] = useState<string | null>(
+    null
+  );
+  const [isVerified, setIsVerified] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -148,6 +155,7 @@ function UserSelector({
       });
       setIsOpen(false);
       setShowPasswordInput(false);
+      setIsVerified(true);
     } else {
       const user = item as AidboxUser;
       onChange({
@@ -159,14 +167,49 @@ function UserSelector({
       });
       setShowPasswordInput(true);
       setIsOpen(false);
+      setIsVerified(false);
+      setVerificationError(null);
+      setPassword('');
     }
   };
 
-  const handlePasswordSubmit = (): void => {
-    if (value && password) {
-      onChange({ ...value, password });
-      setShowPasswordInput(false);
-      setPassword('');
+  const handlePasswordSubmit = async (): Promise<void> => {
+    if (!value || !password) return;
+
+    setIsVerifying(true);
+    setVerificationError(null);
+
+    try {
+      // Verify password by making a test request to backend
+      const response = await fetch('/api/access/verify-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: value.type,
+          id: value.id,
+          password: password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.valid) {
+        // Password is valid
+        onChange({ ...value, password });
+        setIsVerified(true);
+        setShowPasswordInput(false);
+        setPassword('');
+      } else {
+        // Password is invalid
+        setVerificationError(data.message || 'Invalid credentials');
+        setIsVerified(false);
+      }
+    } catch (err) {
+      setVerificationError('Failed to verify credentials');
+      setIsVerified(false);
+      console.error('Verification error:', err);
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -174,6 +217,8 @@ function UserSelector({
     onChange(null);
     setShowPasswordInput(false);
     setPassword('');
+    setIsVerified(false);
+    setVerificationError(null);
   };
 
   return (
@@ -229,7 +274,7 @@ function UserSelector({
                         (value.name?.givenName || value.name?.familyName) &&
                         `${value.email} • `}
                       User
-                      {value.password
+                      {isVerified
                         ? ' • ✓ Authenticated'
                         : ' • Password required'}
                     </p>
@@ -271,14 +316,39 @@ function UserSelector({
               placeholder='Password...'
               className='flex-1 px-4 py-2 bg-midnight-800 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-aurora-green/50'
               onKeyDown={(e) => e.key === 'Enter' && handlePasswordSubmit()}
+              disabled={isVerifying}
             />
             <button
               onClick={handlePasswordSubmit}
-              className='px-4 py-2 bg-aurora-green text-white rounded-lg hover:opacity-90 transition-opacity'
+              disabled={isVerifying || !password}
+              className='px-4 py-2 bg-aurora-green text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2'
             >
-              Confirm
+              {isVerifying ? (
+                <>
+                  <Loader2 className='w-4 h-4 animate-spin' />
+                  Verifying...
+                </>
+              ) : (
+                'Confirm'
+              )}
             </button>
           </div>
+          {verificationError && (
+            <div className='mt-2 flex items-center gap-2 text-red-400 text-sm'>
+              <AlertCircle className='w-4 h-4' />
+              {verificationError}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Success Message */}
+      {isVerified && value && value.type === 'user' && !showPasswordInput && (
+        <div className='mt-3 p-3 bg-aurora-green/10 border border-aurora-green/30 rounded-xl flex items-center gap-2'>
+          <CheckCircle className='w-5 h-5 text-aurora-green' />
+          <span className='text-sm text-aurora-green'>
+            Credentials verified successfully
+          </span>
         </div>
       )}
 
