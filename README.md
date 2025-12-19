@@ -2,8 +2,6 @@
 
 A powerful debugging tool for Aidbox Access Policies that helps developers understand which policies affect resource access for different users and clients.
 
-![Access Policy Visualizer](https://img.shields.io/badge/Aidbox-Access%20Policy%20Visualizer-22d3b0?style=for-the-badge&logo=shield)
-
 ## 🎯 Problem
 
 During Aidbox development, managing Access Policies becomes complex:
@@ -33,8 +31,7 @@ This visualizer provides:
 
 ### Coming Soon
 - 📋 Export results as PDF report
-- 🔍 Custom resource filtering
-- 📊 Access policy analytics
+- 🔍 Other Aidbox operations ($..., etc.)
 
 ---
 
@@ -257,7 +254,7 @@ Content-Type: application/json
 ### 1. Clone the repository
 
 ```bash
-git clone <repository-url>
+git clone git@github.com:glebmark/xmas-hackaton-health-samurai-2025.git
 cd xmas-hackaton-health-samurai-2025
 ```
 
