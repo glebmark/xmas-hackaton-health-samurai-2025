@@ -291,7 +291,8 @@ class AidboxService {
 
   async searchUsers(query: string = ''): Promise<AidboxUser[]> {
     // Use FHIR API for better compatibility with access policies
-    const searchParam = query ? `&name:contains=${encodeURIComponent(query)}` : '';
+    // Using _filter with ILIKE for case-insensitive search
+    const searchParam = query ? `&_ilike="${encodeURIComponent(query)}%25"` : '';
     console.log(`🔍 Searching users with query: ${query}`);
     const response = await this.request(`/fhir/User?_count=50${searchParam}`);
     const data = await response.json() as Bundle<AidboxUser>;
@@ -308,7 +309,8 @@ class AidboxService {
 
   async getClients(query: string = ''): Promise<AidboxClient[]> {
     // Use FHIR API for better compatibility with access policies
-    const searchParam = query ? `&_id:contains=${encodeURIComponent(query)}` : '';
+    // Using _filter with ILIKE for case-insensitive search
+    const searchParam = query ? `&_filter=id ILIKE "${encodeURIComponent(query)}%25"` : '';
     const response = await this.request(`/fhir/Client?_count=50${searchParam}`);
     const data = await response.json() as Bundle<AidboxClient>;
     const clients = data.entry?.map(e => e.resource) || [];
