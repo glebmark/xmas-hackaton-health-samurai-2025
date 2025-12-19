@@ -257,17 +257,49 @@ class AidboxService {
   }
 
   /**
+   * Get a token for a client using client_credentials grant.
+   */
+  private async getClientToken(clientId: string, clientSecret: string): Promise<string> {
+    const tokenUrl = `${this.baseUrl}/auth/token`;
+    
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        grant_type: 'client_credentials',
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error(`Failed to get client token for ${clientId}:`, error);
+      throw new Error(`Failed to get client token: ${response.status} ${error}`);
+    }
+
+    const tokenData = await response.json() as TokenResponse;
+    console.log(`🔑 Obtained client token for ${clientId}`);
+    return tokenData.access_token;
+  }
+
+  /**
    * Resolve UserAuthInfo to an Authorization header.
-   * - For clients: Basic auth with id:secret
+   * - For clients: OAuth client_credentials grant to get Bearer token
    * - For users: OAuth password grant to get Bearer token
    */
   async resolveAuthHeader(authInfo: UserAuthInfo): Promise<string> {
     if (authInfo.type === 'client') {
-      // Clients use Basic auth directly
-      const credentials = Buffer.from(`${authInfo.id}:${authInfo.secret || ''}`).toString('base64');
-      return `Basic ${credentials}`;
+      // Clients use client_credentials grant to get a token
+      if (!authInfo.secret) {
+        throw new Error('Client secret is required for client authentication.');
+      }
+      const token = await this.getClientToken(authInfo.id, authInfo.secret);
+      return `Bearer ${token}`;
     } else {
-      // Users MUST use OAuth password grant - Basic auth only works for Clients
+      // Users MUST use OAuth password grant
       if (!authInfo.password) {
         throw new Error('Password is required for user authentication. Please enter the user\'s password.');
       }

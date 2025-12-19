@@ -1,6 +1,6 @@
 # 🛡️ Aidbox Access Policy Visualizer
 
-A powerful debugging tool for Aidbox Access Policies that helps developers understand which policies affect resource access for different users.
+A powerful debugging tool for Aidbox Access Policies that helps developers understand which policies affect resource access for different users and clients.
 
 ![Access Policy Visualizer](https://img.shields.io/badge/Aidbox-Access%20Policy%20Visualizer-22d3b0?style=for-the-badge&logo=shield)
 
@@ -27,7 +27,7 @@ This visualizer provides:
 - ✅ Paginated resource matrix (10 resources per page)
 - ✅ All CRUD operations: Search, Read, Create, Update, Patch, Delete
 - ✅ User and Client selector with search
-- ✅ Access policy name display
+- ✅ Access policy name display (requires `BOX_SECURITY_DEV_MODE`)
 - ✅ 403 vs 404 differentiation
 - ✅ Compare two users side-by-side
 
@@ -35,6 +35,288 @@ This visualizer provides:
 - 📋 Export results as PDF report
 - 🔍 Custom resource filtering
 - 📊 Access policy analytics
+
+---
+
+## 📦 Prerequisites
+
+- Node.js 18+
+- An Aidbox instance
+- Admin credentials for Aidbox
+
+---
+
+## 🔧 Aidbox Configuration
+
+Before using the visualizer, you need to set up the required Clients and Access Policies in your Aidbox instance.
+
+### Step 1: Create the Admin API Client
+
+This client is used by the visualizer to fetch the list of Users and Clients. It needs read access to User and Client resources.
+
+```http
+PUT /Client/developer-api
+Content-Type: application/json
+
+{
+  "resourceType": "Client",
+  "id": "developer-api",
+  "secret": "your-secure-secret-here",
+  "grant_types": ["client_credentials"]
+}
+```
+
+### Step 2: Create Access Policy for Admin API Client
+
+This policy allows the `developer-api` client to search and read Users and Clients:
+
+```http
+PUT /AccessPolicy/admin-api-access
+Content-Type: application/json
+
+{
+  "resourceType": "AccessPolicy",
+  "id": "admin-api-access",
+  "description": "Allows developer-api client to read Users and Clients for the visualizer",
+  "engine": "matcho",
+  "matcho": {
+    "client": {
+      "id": "developer-api"
+    },
+    "params": {
+      "resource/type": {
+        "$enum": ["User", "Client"]
+      }
+    },
+    "operation": {
+      "id": {
+        "$one-of": ["FhirRead", "FhirSearch"]
+      }
+    }
+  }
+}
+```
+
+### Step 3: Create the User Authentication Client
+
+This client is used to authenticate **Users** via OAuth2 password grant. It's required because:
+
+> ⚠️ **Why do we need a separate client for Users?**
+> 
+> In Aidbox, **Users** and **Clients** authenticate differently:
+> - **Clients** can use `client_credentials` grant (client ID + secret → token)
+> - **Users** must use `password` grant (username + password → token via a client)
+> 
+> The visualizer needs to test access **as a specific User**, which requires obtaining a Bearer token on behalf of that User. This requires a Client with `password` grant type enabled.
+
+```http
+PUT /Client/user-auth-client
+Content-Type: application/json
+
+{
+  "resourceType": "Client",
+  "id": "user-auth-client",
+  "secret": "user-auth-secret",
+  "grant_types": ["password"]
+}
+```
+
+> **Note**: This client doesn't need any Access Policies linked to it. It's only used to issue tokens for Users via password grant.
+
+### Step 4: Enable Debug Mode (Optional but Recommended)
+
+To see **which Access Policy** allowed a request, enable Aidbox Developer Mode:
+
+```yaml
+# In your Aidbox docker-compose.yml or environment:
+BOX_SECURITY_DEV_MODE: 'true'
+```
+
+When enabled:
+- ✅ The visualizer shows the policy name that allowed each request
+- ✅ Purple "Has Policy" indicator appears on allowed operations
+
+When disabled:
+- ❌ Policy names won't be displayed (you'll only see allowed/denied status)
+
+---
+
+## 🧪 Example: Testing User Access
+
+### Create a Test User
+
+```http
+PUT /User/test-developer
+Content-Type: application/json
+
+{
+  "resourceType": "User",
+  "id": "test-developer",
+  "email": "developer@example.com",
+  "password": "developer-password",
+  "roles": [
+    {
+      "type": "developer"
+    }
+  ],
+  "data": {
+    "firstName": "Test",
+    "lastName": "Developer"
+  }
+}
+```
+
+### Create an Access Policy for Developers
+
+This example policy allows users with the `developer` role to search Clients:
+
+```http
+PUT /AccessPolicy/dev-client-search
+Content-Type: application/json
+
+{
+  "resourceType": "AccessPolicy",
+  "id": "dev-client-search",
+  "description": "Developers can search Client resources",
+  "engine": "matcho",
+  "matcho": {
+    "user": {
+      "roles": {
+        "$contains": {
+          "type": "developer"
+        }
+      }
+    },
+    "params": {
+      "resource/type": "Client"
+    },
+    "operation": {
+      "id": "FhirSearch"
+    }
+  }
+}
+```
+
+Now when you select "test-developer" in the visualizer and test access, you'll see:
+- ✅ **Client Search**: Allowed (policy: `dev-client-search`)
+- ❌ **Client Read/Create/Update/Delete**: Forbidden
+
+---
+
+## 🧪 Example: Testing Client Access
+
+You can also test access for Clients directly (not just Users).
+
+### Create a Test Client
+
+```http
+PUT /Client/test-api-client
+Content-Type: application/json
+
+{
+  "resourceType": "Client",
+  "id": "test-api-client",
+  "secret": "test-api-secret",
+  "grant_types": ["client_credentials"]
+}
+```
+
+### Create an Access Policy for the Client
+
+This policy allows `test-api-client` to read Patient resources:
+
+```http
+PUT /AccessPolicy/test-api-patient-read
+Content-Type: application/json
+
+{
+  "resourceType": "AccessPolicy",
+  "id": "test-api-patient-read",
+  "description": "Test API client can read Patient resources",
+  "engine": "matcho",
+  "matcho": {
+    "client": {
+      "id": "test-api-client"
+    },
+    "params": {
+      "resource/type": "Patient"
+    },
+    "operation": {
+      "id": {
+        "$one-of": ["FhirRead", "FhirSearch"]
+      }
+    }
+  }
+}
+```
+
+---
+
+## 📦 Installation
+
+### 1. Clone the repository
+
+```bash
+git clone <repository-url>
+cd xmas-hackaton-health-samurai-2025
+```
+
+### 2. Configure environment variables
+
+```bash
+cd backend
+cp .env.example .env
+```
+
+Edit `.env` with your values:
+
+```env
+# Aidbox Configuration
+AIDBOX_URL=https://your-aidbox-instance.aidbox.app
+
+# Admin API Client (for fetching Users/Clients list)
+AIDBOX_CLIENT_ID=developer-api
+AIDBOX_CLIENT_SECRET=your-secure-secret-here
+
+# User Authentication Client (for password grant)
+AIDBOX_USER_AUTH_CLIENT_ID=user-auth-client
+AIDBOX_USER_AUTH_CLIENT_SECRET=user-auth-secret
+
+# Server Configuration
+PORT=3001
+```
+
+### 3. Install dependencies
+
+```bash
+# Backend
+cd backend
+npm install
+
+# Frontend
+cd ../frontend
+npm install
+```
+
+### 4. Start the servers
+
+Terminal 1 (Backend):
+```bash
+cd backend
+npm run dev
+```
+
+Terminal 2 (Frontend):
+```bash
+cd frontend
+npm run dev
+```
+
+### 5. Open the app
+
+Navigate to `http://localhost:5173`
+
+---
 
 ## 🏗️ Architecture
 
@@ -59,111 +341,52 @@ This visualizer provides:
 └─────────────────────────────────────────────────────────┘
 ```
 
-## 📦 Installation
+---
 
-### Prerequisites
-- Node.js 18+
-- An Aidbox instance with Access Policies configured
-- Admin client credentials (for system operations)
+## 🔐 How Authentication Works
 
-### Setup
+### System Operations (Fetching Users/Clients)
 
-1. **Clone the repository**
-```bash
-cd xmas-hackaton-health-samurai-2025
-```
+The visualizer uses `developer-api` client with `client_credentials` grant:
+1. Backend sends `POST /auth/token` with client_id + client_secret
+2. Receives Bearer token
+3. Uses token to fetch `/fhir/User` and `/fhir/Client`
 
-2. **Configure environment variables**
+### Testing User Access
 
-Copy the example environment file and edit it with your Aidbox credentials:
-```bash
-cd backend
-cp .env.example .env
-```
+When testing as a **User**:
+1. Backend uses `user-auth-client` to perform password grant
+2. Sends `POST /auth/token` with username + password
+3. Receives Bearer token for that User
+4. Tests FHIR operations using that User's token
 
-Then edit `.env` with your values:
-```env
-# Aidbox Configuration
-AIDBOX_URL=https://your-aidbox-instance.aidbox.app
-AIDBOX_CLIENT_ID=your-admin-client-id
-AIDBOX_CLIENT_SECRET=your-admin-client-secret
+### Testing Client Access
 
-# Optional: Client for user authentication (password grant)
-# If your main client doesn't support password grant, specify a different client here
-# AIDBOX_USER_AUTH_CLIENT_ID=your-user-auth-client-id
-# AIDBOX_USER_AUTH_CLIENT_SECRET=your-user-auth-client-secret
+When testing as a **Client**:
+1. Backend performs `client_credentials` grant for that client
+2. Sends `POST /auth/token` with client_id + client_secret
+3. Receives Bearer token
+4. Tests FHIR operations using that token
 
-# Server Configuration
-PORT=3001
-```
-
-> **Note**: To test access as Users (not just Clients), you need a client that supports the `password` grant type. Either:
-> - Enable `password` grant on your main client in Aidbox
-> - Or set `AIDBOX_USER_AUTH_CLIENT_ID`/`AIDBOX_USER_AUTH_CLIENT_SECRET` to a client that has it enabled
-
-3. **Install dependencies**
-```bash
-# Install backend dependencies
-cd backend
-npm install
-
-# Install frontend dependencies
-cd ../frontend
-npm install
-```
-
-4. **Start the servers**
-
-In one terminal:
-```bash
-cd backend
-npm run dev
-```
-
-In another terminal:
-```bash
-cd frontend
-npm run dev
-```
-
-5. **Open the app**
-
-Navigate to `http://localhost:5173`
-
-## 🔐 Authentication
-
-The visualizer supports two authentication methods:
-
-### For System Operations (User/Client Search, Sample Resources)
-Uses admin credentials configured in `.env`:
-- OAuth2 `client_credentials` grant with `AIDBOX_CLIENT_ID` and `AIDBOX_CLIENT_SECRET`
-- This client should have an `allow` access policy (engine: allow)
-
-### For Access Testing
-Tests are performed using the selected user/client credentials:
-- **Clients**: Basic Auth with client ID and secret (works directly)
-- **Users**: OAuth2 `password` grant to obtain a Bearer token, then uses that token for FHIR requests
-
-> **Important**: For testing Users, you need a client that supports the `password` grant type.
-> Configure it via `AIDBOX_USER_AUTH_CLIENT_ID`/`AIDBOX_USER_AUTH_CLIENT_SECRET`, or enable
-> `password` grant on your main client.
+---
 
 ## 📊 Understanding Results
 
-| Status | Meaning | HTTP Code |
-|--------|---------|-----------|
-| ✅ Allowed | Operation permitted by an Access Policy | 2xx |
-| ❌ Denied | Explicitly forbidden by Access Policy | 403 |
-| ⚠️ Not Found | Resource doesn't exist (not a policy issue) | 404 |
-| ⚪ Error | Other errors (network, server, etc.) | 4xx/5xx |
+| Status | Icon | Meaning | HTTP Code |
+|--------|------|---------|-----------|
+| Allowed | ✅ | Operation permitted by an Access Policy | 2xx |
+| Unauthorized | ⚠️ | Authentication failed | 401 |
+| Denied | ❌ | Explicitly forbidden by Access Policy | 403 |
+| Not Found | 📄 | Resource doesn't exist (not a policy issue) | 404 |
+| Error | ⚪ | Other errors (network, server, etc.) | 4xx/5xx |
 
-## 🧪 Tested Resources
+### Policy Attribution
 
-The visualizer tests access for common FHIR resources:
-- Patient, Practitioner, Organization
-- Observation, Encounter, Condition
-- MedicationRequest, Procedure
-- And 25+ more...
+When `BOX_SECURITY_DEV_MODE=true`:
+- A purple dot (●) appears next to allowed operations
+- Hover to see which Access Policy allowed the request
+
+---
 
 ## 🛠️ API Endpoints
 
@@ -179,6 +402,8 @@ The visualizer tests access for common FHIR resources:
 | `/api/access/test-batch` | POST | Test access for multiple resources |
 | `/api/access/compare` | POST | Compare access between two users |
 
+---
+
 ## 🎨 Tech Stack
 
 ### Frontend
@@ -191,6 +416,35 @@ The visualizer tests access for common FHIR resources:
 - Node.js + TypeScript
 - Express
 - tsx (TypeScript execution)
+
+---
+
+## 🐛 Troubleshooting
+
+### "Basic auth is not enabled for client"
+
+This error occurs when testing a Client that doesn't have `basic` in its `grant_types`. 
+
+**Solution**: The visualizer now uses `client_credentials` grant for Clients instead of Basic auth. Make sure your test clients have `client_credentials` in their `grant_types`.
+
+### "Password grant is not allowed for this client"
+
+This error occurs when trying to test a User but the authentication client doesn't support password grant.
+
+**Solution**: Ensure `user-auth-client` has `"grant_types": ["password"]` in its configuration.
+
+### Access Policy names not showing
+
+**Solution**: Enable `BOX_SECURITY_DEV_MODE: 'true'` in your Aidbox configuration.
+
+### 401 errors for all operations
+
+Check that:
+1. `developer-api` client exists and has correct secret
+2. `admin-api-access` policy is created
+3. Environment variables match the client credentials
+
+---
 
 ## 📝 License
 

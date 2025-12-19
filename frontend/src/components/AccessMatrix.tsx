@@ -136,9 +136,9 @@ function AccessMatrix({
                         {resource.name.slice(0, 2).toUpperCase()}
                       </span>
                     </div>
-                    <div>
+                    <div className='min-w-0'>
                       <p className='text-white font-medium'>{resource.name}</p>
-                      <p className='text-xs text-gray-500 max-w-[200px] truncate'>
+                      <p className='text-xs text-gray-500 max-w-[200px] line-clamp-2'>
                         {resource.description}
                       </p>
                     </div>
