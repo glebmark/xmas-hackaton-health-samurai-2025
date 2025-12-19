@@ -289,6 +289,81 @@ class AidboxService {
       || null;
   }
 
+  /**
+   * Use __debug=policy to find which access policy allowed a request.
+   * This makes a separate request with the debug parameter to get policy evaluation info.
+   * Requires BOX_SECURITY_DEV_MODE=true in Aidbox.
+   * 
+   * @see https://docs.aidbox.app/tutorials/security-access-control-tutorials/debug
+   */
+  private async findAllowingPolicy(
+    url: string,
+    method: string,
+    userAuth: string,
+    body?: string,
+    headers?: Record<string, string>
+  ): Promise<string | null> {
+    try {
+      // Add __debug=policy to the URL
+      const debugUrl = url.includes('?') 
+        ? `${url}&__debug=policy` 
+        : `${url}?__debug=policy`;
+      
+      const fullUrl = `${this.baseUrl}/fhir/${debugUrl}`;
+      
+      const response = await fetch(fullUrl, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': userAuth,
+          ...headers,
+        },
+        body: method !== 'GET' && method !== 'DELETE' ? body : undefined,
+      });
+
+      const data = await response.json() as {
+        policies?: Array<{
+          id?: string;
+          'eval-result'?: boolean;
+        }>;
+        request?: {
+          policies?: Array<{
+            id?: string;
+            'eval-result'?: boolean;
+          }>;
+        };
+      };
+
+      // Debug log for first few requests to understand the response structure
+      if (url.includes('Client') && method === 'GET') {
+        console.log(`🔍 Debug policy response for ${method} ${url}:`);
+        console.log(`   Response keys: ${Object.keys(data).join(', ')}`);
+        const policies = data.policies || data.request?.policies || [];
+        console.log(`   Policies found: ${policies.length}`);
+        if (policies.length > 0) {
+          console.log(`   First policy: ${JSON.stringify(policies[0], null, 2).substring(0, 300)}`);
+          const allowing = policies.find(p => p['eval-result'] === true);
+          if (allowing) {
+            console.log(`   ✅ Allowing policy: ${allowing.id}`);
+          }
+        }
+      }
+
+      // Find the policy that evaluated to true (allowed the request)
+      const policies = data.policies || data.request?.policies || [];
+      const allowingPolicy = policies.find(p => p['eval-result'] === true);
+      
+      if (allowingPolicy?.id) {
+        return allowingPolicy.id;
+      }
+
+      return null;
+    } catch (error) {
+      // Debug endpoint might not be available
+      return null;
+    }
+  }
+
   async searchUsers(query: string = ''): Promise<AidboxUser[]> {
     // Use FHIR API for better compatibility with access policies
     // Using _filter with ILIKE for case-insensitive search
@@ -479,8 +554,8 @@ class AidboxService {
         console.log(`🔍 Response for ${resourceType}/${op.key}: status=${status}`);
       }
       
-      // Try to get access policy from response headers (requires BOX_SECURITY_DEV_MODE)
-      const accessPolicy = this.getAccessPolicyFromHeaders(response);
+      // Try to get access policy from response headers first
+      let accessPolicy = this.getAccessPolicyFromHeaders(response);
 
       // Determine if access was allowed (vs denied by policy)
       // 404/410/422 mean access was granted but operation failed for other reasons
@@ -488,6 +563,17 @@ class AidboxService {
         || status === 404  // Not found - access allowed, resource doesn't exist
         || status === 410  // Gone/Deleted - access allowed, resource was deleted  
         || status === 422; // Validation error - access allowed, invalid data
+
+      // If allowed but no policy from headers, use __debug=policy to find which policy allowed
+      if (accessAllowed && !accessPolicy) {
+        accessPolicy = await this.findAllowingPolicy(
+          op.getUrl(resourceType, sampleId || undefined),
+          op.method,
+          userAuth,
+          body,
+          headers
+        );
+      }
 
       return {
         operation: op.key,
