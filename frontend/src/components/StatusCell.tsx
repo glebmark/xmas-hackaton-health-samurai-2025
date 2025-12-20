@@ -30,12 +30,12 @@ function StatusCell({ result, isLoading, operation, isRightmost = false }: Statu
       hideTimeoutRef.current = null;
     }
     
-    // Calculate tooltip position
+    // Calculate tooltip position - center on the button (fixed positioning uses viewport coords)
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       setTooltipPosition({
-        top: rect.top + window.scrollY,
-        left: rect.left + window.scrollX + rect.width / 2,
+        top: rect.top + rect.height / 2,
+        left: rect.left + rect.width / 2,
       });
     }
     
